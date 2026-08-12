@@ -2027,14 +2027,30 @@ function saveAntimicotico() {
 
     const existingIdx = appData.antimicotico.findIndex(row => formatDateReadable(row.FECHA) === formatDateReadable(new Date(dateStr + 'T12:00:00')));
     const record = {
-        "FECHA": new Date(dateStr + 'T12:00:00'),
-        "BIN1_INI": bin1_ini, "BIN2_INI": bin2_ini, "BIN3_INI": bin3_ini,
-        "BIN1_FIN": bin1_fin, "BIN2_FIN": bin2_fin, "BIN3_FIN": bin3_fin,
-        "BIN1_ADD": bin1_add, "BIN2_ADD": bin2_add, "BIN3_ADD": bin3_add,
-        "TOTAL_INI": total_ini, "TOTAL_FIN": total_fin, "CANT_AGREGADA": total_add,
-        "TRUCKS_RCVD": numTrucks, "CONS_TEO": consTeo, "CONS_REAL": consReal, "DIFERENCIA": diff,
-        "INGRESO": ingreso, "INV_FINAL": inv_final, "TOTAL_TM": total_tm, "PCT_CONSUMO_TM": pct_consumo,
-        "#_DE_BODEGA": n_bodega, "REALIZADO_POR": realizado_por, "OBSERVACION": observacion
+        fecha: dateStr,
+        bin1_ini: bin1_ini,
+        bin2_ini: bin2_ini,
+        bin3_ini: bin3_ini,
+        bin1_fin: bin1_fin,
+        bin2_fin: bin2_fin,
+        bin3_fin: bin3_fin,
+        bin1_add: bin1_add,
+        bin2_add: bin2_add,
+        bin3_add: bin3_add,
+        total_ini: total_ini,
+        total_fin: total_fin,
+        cant_agregada: total_add,
+        trucks_rcvd: numTrucks,
+        cons_teo: consTeo,
+        cons_real: consReal,
+        diferencia: diff,
+        ingreso: ingreso,
+        inv_final: inv_final,
+        total_tm: total_tm,
+        pct_consumo_tm: pct_consumo,
+        bodega: n_bodega,
+        realizado: realizado_por,
+        observacion: observacion
     };
 
     const scriptUrl = 'https://script.google.com/macros/s/AKfycbw9ShpDzZOMLhG-NswJZQyekviCMDf3KV1G8Lfs6Sb7ZTNuOiXGswD86PqY5M9gQTde/exec';
