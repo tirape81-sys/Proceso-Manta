@@ -2090,7 +2090,7 @@ function saveAntimicotico() {
         .catch(err => {
             if (loader) loader.classList.remove('active');
             console.error("Error al guardar consumo:", err);
-            showToast('Sincronización completada con la nube', 'success');
+            showToast('Error al guardar en la nube: ' + err.message, 'danger');
             setTimeout(tryAutoLoadExcel, 1500);
         });
     } else {
@@ -2300,7 +2300,7 @@ function saveAntiIngreso() {
             if (loader) loader.classList.remove('active');
             closeAntiIngresoModal();
             console.error("Error al registrar lote en la nube:", err);
-            showToast('Sincronización completada con la nube', 'success');
+            showToast('Error al registrar lote en la nube: ' + err.message, 'danger');
             setTimeout(tryAutoLoadExcel, 1500);
         });
     } else {
