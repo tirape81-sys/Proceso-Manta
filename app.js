@@ -1967,7 +1967,12 @@ function updateAntimicoticoCalculations() {
 }
 
 function saveAntimicotico() {
-    const dateStr = document.getElementById('anti-date').value;
+    const dateStr = document.getElementById('antimicotico-date').value;
+    if (!dateStr) {
+        showToast('Por favor seleccione una fecha', 'warning');
+        return;
+    }
+
     const bin1_ini = parseFloat(document.getElementById('anti-bin1-ini').value || 0);
     const bin2_ini = parseFloat(document.getElementById('anti-bin2-ini').value || 0);
     const bin3_ini = parseFloat(document.getElementById('anti-bin3-ini').value || 0);
@@ -1977,27 +1982,48 @@ function saveAntimicotico() {
     const bin1_add = parseFloat(document.getElementById('anti-bin1-add').value || 0);
     const bin2_add = parseFloat(document.getElementById('anti-bin2-add').value || 0);
     const bin3_add = parseFloat(document.getElementById('anti-bin3-add').value || 0);
-    const total_ini = parseFloat(document.getElementById('anti-total-ini').value || 0);
-    const total_fin = parseFloat(document.getElementById('anti-total-fin').value || 0);
-    const total_add = parseFloat(document.getElementById('anti-total-add').value || 0);
-    const numTrucks = parseInt(document.getElementById('anti-trucks-rcvd').value || 0, 10);
-    const consTeo = parseFloat(document.getElementById('anti-cons-teo').value || 0);
-    const consReal = parseFloat(document.getElementById('anti-cons-real').value || 0);
-    const diff = parseFloat(document.getElementById('anti-diferencia').value || 0);
+    
+    // Calcular totales
+    const total_ini = bin1_ini + bin2_ini + bin3_ini;
+    const total_fin = bin1_fin + bin2_fin + bin3_fin;
+    const total_add = bin1_add + bin2_add + bin3_add;
+    
+    // Contar camiones recibidos (compras no rechazadas)
+    const receivedTrucks = appData.aries.filter(row => {
+        const isSameDate = formatDateReadable(row.FECHAENTRA) === dateStr;
+        const isPurchase = Number(row.PESOARTIC) === 1;
+        const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
+        return isSameDate && isPurchase && !isRejected;
+    });
+    
+    const numTrucks = receivedTrucks.length;
+    const consTeo = numTrucks * 40.0;
+    const consReal = total_ini + total_add - total_fin;
+    const diff = consReal - consTeo;
 
-    // Manta fields
-    const ingreso = parseFloat(document.getElementById('anti-ingreso').value || 0);
-    const inv_final = parseFloat(document.getElementById('anti-inv-final').value || 0);
-    const total_tm = parseFloat(document.getElementById('anti-total-tm').value || 0);
-    const pct_consumo = parseFloat(document.getElementById('anti-pct-consumo').value || 0);
-    const n_bodega = document.getElementById('anti-n-bodega') ? document.getElementById('anti-n-bodega').value : '';
-    const realizado_por = document.getElementById('anti-realizado-por') ? document.getElementById('anti-realizado-por').value : 'Karen Quijije';
-    const observacion = document.getElementById('anti-observacion') ? document.getElementById('anti-observacion').value : '';
-
-    if (!dateStr) {
-        showToast('Por favor seleccione una fecha', 'warning');
-        return;
+    // Calcular Total TM del día sumando pesokilos de la base de datos (Ingreso Balzar / Aries)
+    let totalKilosDay = 0;
+    if (appData.aries) {
+        appData.aries.forEach(row => {
+            if (formatDateReadable(row.FECHAENTRA) === dateStr) {
+                const isPurchase = Number(row.PESOARTIC) === 1;
+                const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
+                if (isPurchase && isRejected) {
+                    return; // Excluir compras rechazadas
+                }
+                totalKilosDay += Number(row.PESOKILOS || row.CANTKILOSR || 0);
+            }
+        });
     }
+    const total_tm = totalKilosDay / 1000;
+    const pct_consumo = total_tm > 0 ? (consReal / total_tm) * 100 : 0;
+    
+    const ingreso = calculateIngresoForDate(dateStr);
+    const inv_final = ingreso - consReal;
+
+    const n_bodega = document.getElementById('anti-bodega') ? document.getElementById('anti-bodega').value : '';
+    const realizado_por = document.getElementById('anti-realizado') ? document.getElementById('anti-realizado').value : '';
+    const observacion = document.getElementById('anti-observacion') ? document.getElementById('anti-observacion').value : '';
 
     const existingIdx = appData.antimicotico.findIndex(row => formatDateReadable(row.FECHA) === formatDateReadable(new Date(dateStr + 'T12:00:00')));
     const record = {
