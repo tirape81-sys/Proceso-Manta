@@ -26,6 +26,23 @@
 </head>
 <body>
 
+    <!-- PANTALLA DE LOGIN DE SEGURIDAD (ACCESO PROTEGIDO) -->
+    <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f8fafc; display: flex; align-items: center; justify-content: center; z-index: 999999; font-family: inherit;">
+        <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center; border: 1px solid #e2e8f0;">
+            <img src="Logo.png" alt="Logo" style="height: 48px; margin-bottom: 20px; object-fit: contain;">
+            <h2 style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin: 0 0 8px 0;">Acceso Protegido</h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin: 0 0 24px 0;">Ingrese la contraseña de seguridad para acceder al sistema.</p>
+            <div style="display: flex; flex-direction: column; gap: 16px; text-align: left;">
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label for="login-pass" style="font-weight: 500; font-size: 0.85rem; color: #64748b;">Contraseña:</label>
+                    <input type="password" id="login-pass" placeholder="••••••••" style="width: 100%; height: 42px; border-radius: 6px; border: 1px solid #cbd5e1; padding: 0 16px; font-size: 1rem; box-sizing: border-box;" onkeydown="if(event.key === 'Enter') checkLoginPassword()">
+                </div>
+                <button id="btn-login" onclick="checkLoginPassword()" style="width: 100%; height: 44px; font-weight: 600; background: #10B981; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 0.95rem; transition: background 0.2s;">Ingresar</button>
+                <p id="login-error" style="color: #ef4444; font-size: 0.8rem; margin: 0; display: none; text-align: center; font-weight: 500;">Contraseña incorrecta. Inténtelo nuevamente.</p>
+            </div>
+        </div>
+    </div>
+
     <!-- 0. PANTALLA DE CARGA DE ARCHIVO (UPLOAD SCREEN) -->
     <div id="file-upload-screen" class="upload-screen hidden">
         <div class="upload-card">

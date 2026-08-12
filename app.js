@@ -9,8 +9,27 @@ let charts = {};
 let selectedSampleTickets = [];
 let pendingTab = null; // Track which tab was clicked before file upload
 
+// Web Login Security
+window.checkLoginPassword = function() {
+    const pass = document.getElementById('login-pass').value;
+    if (pass === "Calidad2026") {
+        sessionStorage.setItem('isCalidadAuthorized', 'true');
+        const overlay = document.getElementById('login-overlay');
+        if (overlay) overlay.style.display = 'none';
+    } else {
+        const errorEl = document.getElementById('login-error');
+        if (errorEl) errorEl.style.display = 'block';
+        document.getElementById('login-pass').value = '';
+    }
+};
+
 // Initialize Drag & Drop Events on Load
 document.addEventListener('DOMContentLoaded', () => {
+    // Verify security login session
+    if (sessionStorage.getItem('isCalidadAuthorized') === 'true') {
+        const overlay = document.getElementById('login-overlay');
+        if (overlay) overlay.style.display = 'none';
+    }
     setupDragAndDrop();
     loadCachedData();
     tryAutoLoadExcel();
@@ -65,7 +84,7 @@ function tryAutoLoadExcel() {
     console.log(`Intentando cargar Google Sheet automáticamente desde Apps Script Web App: ${scriptUrl}`);
     updateSyncStatus('syncing', 'Sincronizando...');
     
-    fetch(scriptUrl)
+    fetch(scriptUrl + '?token=TokenCalidadMantaBalzar2026')
         .then(res => {
             if (!res.ok) throw new Error("No se pudo obtener la información de Google Sheets.");
             return res.json();
@@ -1495,6 +1514,11 @@ function saveSampleToExcel() {
             return;
         }
 
+        const finalPayload = {
+            token: "TokenCalidadMantaBalzar2026",
+            data: payload
+        };
+
         const loader = document.getElementById('sync-loader');
         loader.classList.add('active');
 
@@ -1504,7 +1528,7 @@ function saveSampleToExcel() {
             headers: {
                 'Content-Type': 'text/plain;charset=utf-8'
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(finalPayload)
         })
         .then(res => {
             if (!res.ok) throw new Error("Error en la respuesta de red de Google Script");
@@ -1522,7 +1546,7 @@ function saveSampleToExcel() {
         .catch(err => {
             loader.classList.remove('active');
             console.error("Error al guardar en la nube:", err);
-            showToast('Sincronización completada con la nube', 'success');
+            showToast('Error al guardar en la nube: ' + err.message, 'danger');
             setTimeout(tryAutoLoadExcel, 1500);
         });
 
@@ -2058,6 +2082,7 @@ function saveAntimicotico() {
     if (scriptUrl) {
         const payload = {
             action: "saveAntimicotico",
+            token: "TokenCalidadMantaBalzar2026",
             data: record
         };
         
@@ -2259,6 +2284,7 @@ function saveAntiIngreso() {
     
     const payload = {
         action: "saveAntimicoticoIngreso",
+        token: "TokenCalidadMantaBalzar2026",
         data: {
             fecha: dateStr,
             cantidad_kg: qty,
