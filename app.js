@@ -306,8 +306,8 @@ function processExcelFile(file) {
 
 // Extract data from SheetJS workbook and populate appData (supporting Google Sheet names & Local Excel names)
 function fetchDataFromWorkbook(workbook) {
-    // Support Google Sheet names ('Ingreso Balzar', 'Calidad', 'Registro Contramuestra') or Local names ('Aries', 'Base de Calidad', 'Base Contramuestra')
-    const ariesSheet = workbook.Sheets['Ingreso Balzar'] || workbook.Sheets['Aries'];
+    // Support Google Sheet names ('Ingreso Manta', 'Ingreso Balzar', 'Calidad', 'Registro Contramuestra') or Local names ('Aries', 'Base de Calidad', 'Base Contramuestra')
+    const ariesSheet = workbook.Sheets['Ingreso Manta'] || workbook.Sheets['Ingreso Balzar'] || workbook.Sheets['Aries'];
     const calidadSheet = workbook.Sheets['Calidad'] || workbook.Sheets['Base de Calidad'];
     const cmSheet = workbook.Sheets['Registro Contramuestra'] || workbook.Sheets['Base Contramuestra'];
 
@@ -1682,22 +1682,6 @@ function saveSampleToExcel() {
 }
 
 function initializeAntimicoticoControls() {
-    const datesWithTrucks = new Set();
-    appData.aries.forEach(row => {
-        const dateStr = formatDateReadable(row.FECHAENTRA);
-        if (dateStr && dateStr !== '-') {
-            datesWithTrucks.add(dateStr);
-        }
-    });
-    
-    // Obtener fechas que ya tienen un consumo diario registrado para deshabilitarlas en la selección (evita manipulación)
-    const registeredDates = new Set(appData.antimicotico.map(r => formatDateReadable(r.FECHA)));
-    
-    // Filtrar para habilitar solo las fechas que tienen camiones recibidos y que NO han sido registradas aún
-    const enabledDates = Array.from(datesWithTrucks)
-        .filter(d => !registeredDates.has(d))
-        .sort((a, b) => new Date(b) - new Date(a));
-    
     if (window.flatpickrAntimicoticoInstance) {
         window.flatpickrAntimicoticoInstance.destroy();
     }
@@ -1708,30 +1692,38 @@ function initializeAntimicoticoControls() {
     // Actualizar saldos del inventario global en las tarjetas
     updateAntimicoticoInventoryBalance();
     
-    // Actualizar KPI de Adherencia Mensual
-    let kpiDate = enabledDates[0] || (appData.antimicotico.length > 0 ? formatDateReadable(appData.antimicotico[0].FECHA) : new Date().toISOString().split('T')[0]);
-    updateMonthlyAdherenceKPI(kpiDate);
+    // Obtener fechas que ya tienen un consumo diario registrado para deshabilitarlas en la selección (evita manipulación)
+    const registeredDates = new Set(appData.antimicotico.map(r => formatDateReadable(r.FECHA)));
     
-    if (enabledDates.length === 0) {
-        dateInput.placeholder = 'Todas las fechas disponibles ya registradas';
-        dateInput.disabled = true;
-        
-        // Limpiar campos del formulario
-        document.getElementById('anti-bin1-ini').value = 0;
-        document.getElementById('anti-bin2-ini').value = 0;
-        document.getElementById('anti-bin3-ini').value = 0;
-        document.getElementById('anti-bin1-fin').value = 0;
-        document.getElementById('anti-bin2-fin').value = 0;
-        document.getElementById('anti-bin3-fin').value = 0;
-        document.getElementById('btn-save-antimicotico').disabled = true;
-        return;
+    // Buscar la primera fecha disponible para seleccionar por defecto (hoy o el primer día futuro libre)
+    const today = new Date();
+    let defaultDate = today;
+    let todayStr = today.toISOString().split('T')[0];
+    if (registeredDates.has(todayStr)) {
+        let nextDay = new Date();
+        while (registeredDates.has(nextDay.toISOString().split('T')[0])) {
+            nextDay.setDate(nextDay.getDate() + 1);
+        }
+        defaultDate = nextDay;
     }
+    
+    const defaultDateStr = defaultDate.toISOString().split('T')[0];
+    
+    // Actualizar KPI de Adherencia Mensual
+    updateMonthlyAdherenceKPI(defaultDateStr);
     
     dateInput.disabled = false;
     window.flatpickrAntimicoticoInstance = flatpickr("#antimicotico-date", {
-        enable: enabledDates.map(d => new Date(d + 'T12:00:00')),
+        minDate: "today",
+        disable: [
+            function(date) {
+                // Deshabilitar fechas que ya tienen registros
+                const dStr = formatDateReadable(date);
+                return registeredDates.has(dStr);
+            }
+        ],
         dateFormat: "Y-m-d",
-        defaultDate: enabledDates[0] ? new Date(enabledDates[0] + 'T12:00:00') : null,
+        defaultDate: defaultDate,
         locale: {
             firstDayOfWeek: 1,
             weekdays: {
@@ -1746,11 +1738,6 @@ function initializeAntimicoticoControls() {
         onChange: function(selectedDates, dateStr, instance) {
             prepopulateAntimicoticoForm(dateStr);
             updateAntimicoticoCalculations();
-        },
-        onOpen: function(selectedDates, dateStr, instance) {
-            if (enabledDates.length > 0 && selectedDates.length === 0) {
-                instance.jumpToDate(new Date(enabledDates[0] + 'T12:00:00'));
-            }
         }
     });
     
@@ -1759,16 +1746,12 @@ function initializeAntimicoticoControls() {
         input.oninput = updateAntimicoticoCalculations;
     });
     
-    // Disparar carga inicial para la fecha activa por defecto
-    if (enabledDates[0]) {
-        prepopulateAntimicoticoForm(enabledDates[0]);
-        updateAntimicoticoCalculations();
-    }
+    // Disparar carga inicial
+    prepopulateAntimicoticoForm(defaultDateStr);
+    updateAntimicoticoCalculations();
 }
 
 function prepopulateAntimicoticoForm(dateStr) {
-    // Como las fechas registradas ya están deshabilitadas en el calendario, solo precargamos el inventario inicial
-    // buscando las existencias finales del día anterior registrado cronológicamente (para arrastre automático de saldos)
     const prevRecord = findPreviousAntimicoticoRecord(dateStr);
     const bin1IniEl = document.getElementById('anti-bin1-ini');
     const bin2IniEl = document.getElementById('anti-bin2-ini');
