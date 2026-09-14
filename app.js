@@ -1572,6 +1572,387 @@ function saveSampleToExcel() {
         });
 }
 
+function initializeAntimicoticoControls() {
+    const datesWithTrucks = new Set();
+    appData.aries.forEach(row => {
+        const dateStr = formatDateReadable(row.FECHAENTRA);
+        if (dateStr && dateStr !== '-') {
+            datesWithTrucks.add(dateStr);
+        }
+    });
+    
+    // Obtener fechas que ya tienen un consumo diario registrado para deshabilitarlas en la selección (evita manipulación)
+    const registeredDates = new Set(appData.antimicotico.map(r => formatDateReadable(r.FECHA)));
+    
+    // Filtrar para habilitar solo las fechas que tienen camiones recibidos y que NO han sido registradas aún
+    const enabledDates = Array.from(datesWithTrucks)
+        .filter(d => !registeredDates.has(d))
+        .sort((a, b) => new Date(b) - new Date(a));
+    
+    if (window.flatpickrAntimicoticoInstance) {
+        window.flatpickrAntimicoticoInstance.destroy();
+    }
+    
+    const dateInput = document.getElementById('antimicotico-date');
+    if (!dateInput) return;
+    
+    // Actualizar saldos del inventario global en las tarjetas
+    updateAntimicoticoInventoryBalance();
+    
+    // Actualizar KPI de Adherencia Mensual
+    let kpiDate = enabledDates[0] || (appData.antimicotico.length > 0 ? formatDateReadable(appData.antimicotico[0].FECHA) : new Date().toISOString().split('T')[0]);
+    updateMonthlyAdherenceKPI(kpiDate);
+    
+    if (enabledDates.length === 0) {
+        dateInput.placeholder = 'Todas las fechas disponibles ya registradas';
+        dateInput.disabled = true;
+        
+        // Limpiar campos del formulario
+        document.getElementById('anti-bin1-ini').value = 0;
+        document.getElementById('anti-bin2-ini').value = 0;
+        document.getElementById('anti-bin3-ini').value = 0;
+        document.getElementById('anti-bin1-fin').value = 0;
+        document.getElementById('anti-bin2-fin').value = 0;
+        document.getElementById('anti-bin3-fin').value = 0;
+        document.getElementById('btn-save-antimicotico').disabled = true;
+        return;
+    }
+    
+    dateInput.disabled = false;
+    window.flatpickrAntimicoticoInstance = flatpickr("#antimicotico-date", {
+        enable: enabledDates.map(d => new Date(d + 'T12:00:00')),
+        dateFormat: "Y-m-d",
+        defaultDate: enabledDates[0] ? new Date(enabledDates[0] + 'T12:00:00') : null,
+        locale: {
+            firstDayOfWeek: 1,
+            weekdays: {
+                shorthand: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+                longhand: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+            },
+            months: {
+                shorthand: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+                longhand: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+            }
+        },
+        onChange: function(selectedDates, dateStr, instance) {
+            prepopulateAntimicoticoForm(dateStr);
+            updateAntimicoticoCalculations();
+        },
+        onOpen: function(selectedDates, dateStr, instance) {
+            if (enabledDates.length > 0 && selectedDates.length === 0) {
+                instance.jumpToDate(new Date(enabledDates[0] + 'T12:00:00'));
+            }
+        }
+    });
+    
+    // Vincular el evento input a los campos numéricos para cálculos automáticos en tiempo real
+    document.querySelectorAll('.anti-calc-input').forEach(input => {
+        input.oninput = updateAntimicoticoCalculations;
+    });
+    
+    // Disparar carga inicial para la fecha activa por defecto
+    if (enabledDates[0]) {
+        prepopulateAntimicoticoForm(enabledDates[0]);
+        updateAntimicoticoCalculations();
+    }
+}
+
+function prepopulateAntimicoticoForm(dateStr) {
+    const prevRecord = findPreviousAntimicoticoRecord(dateStr);
+    const bin1IniEl = document.getElementById('anti-bin1-ini');
+    const bin2IniEl = document.getElementById('anti-bin2-ini');
+    const bin3IniEl = document.getElementById('anti-bin3-ini');
+    
+    if (prevRecord) {
+        bin1IniEl.value = prevRecord.BIN1_FIN !== null && prevRecord.BIN1_FIN !== undefined ? prevRecord.BIN1_FIN : 0;
+        bin2IniEl.value = prevRecord.BIN2_FIN !== null && prevRecord.BIN2_FIN !== undefined ? prevRecord.BIN2_FIN : 0;
+        bin3IniEl.value = prevRecord.BIN3_FIN !== null && prevRecord.BIN3_FIN !== undefined ? prevRecord.BIN3_FIN : 0;
+        
+        bin1IniEl.disabled = true;
+        bin2IniEl.disabled = true;
+        bin3IniEl.disabled = true;
+    } else {
+        bin1IniEl.value = 0;
+        bin2IniEl.value = 0;
+        bin3IniEl.value = 0;
+        
+        bin1IniEl.disabled = false;
+        bin2IniEl.disabled = false;
+        bin3IniEl.disabled = false;
+    }
+    
+    document.getElementById('anti-bin1-fin').value = 0;
+    document.getElementById('anti-bin2-fin').value = 0;
+    document.getElementById('anti-bin3-fin').value = 0;
+    document.getElementById('anti-bin1-add').value = 0;
+    document.getElementById('anti-bin2-add').value = 0;
+    document.getElementById('anti-bin3-add').value = 0;
+    
+    let totalKilosDay = 0;
+    if (appData.aries) {
+        appData.aries.forEach(row => {
+            if (formatDateReadable(row.FECHAENTRA) === dateStr) {
+                const isPurchase = Number(row.PESOARTIC) === 1;
+                const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
+                if (isPurchase && isRejected) {
+                    return;
+                }
+                totalKilosDay += Number(row.PESOKILOS || row.CANTKILOSR || 0);
+            }
+        });
+    }
+    const totalTm = totalKilosDay / 1000;
+    document.getElementById('anti-total-tm').value = totalTm.toFixed(1);
+    
+    document.getElementById('anti-bodega').value = 'BODEGA 4';
+    document.getElementById('anti-realizado').value = 'Karen Quijije';
+    document.getElementById('anti-observacion').value = '';
+    
+    document.getElementById('btn-save-antimicotico').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar Registro Diario';
+}
+
+function calculateIngresoForDate(dateStr) {
+    const prevRecord = findPreviousAntimicoticoRecord(dateStr);
+    let prevInvFinal = 0;
+    if (prevRecord) {
+        prevInvFinal = parseFloat(prevRecord.INV_FINAL || prevRecord.inv_final || prevRecord.TOTAL_FIN || 0);
+    }
+    
+    let deliveriesToday = 0;
+    if (appData.antimicotico_ingresos) {
+        appData.antimicotico_ingresos.forEach(delivery => {
+            if (formatDateReadable(delivery.FECHA) === dateStr) {
+                deliveriesToday += parseFloat(delivery.CANTIDAD_KG || 0);
+            }
+        });
+    }
+    
+    return prevInvFinal + deliveriesToday;
+}
+
+function findPreviousAntimicoticoRecord(dateStr) {
+    const targetDate = new Date(dateStr + 'T12:00:00');
+    let prev = null;
+    let prevDiff = Infinity;
+    
+    appData.antimicotico.forEach(r => {
+        const dStr = formatDateReadable(r.FECHA);
+        if (dStr === '-') return;
+        const d = new Date(dStr + 'T12:00:00');
+        const diff = targetDate - d;
+        if (diff > 0 && diff < prevDiff) {
+            prevDiff = diff;
+            prev = r;
+        }
+    });
+    return prev;
+}
+
+function updateAntimicoticoCalculations() {
+    const dateStr = document.getElementById('antimicotico-date').value;
+    if (!dateStr) {
+        document.getElementById('btn-save-antimicotico').disabled = true;
+        return;
+    }
+    
+    updateMonthlyAdherenceKPI(dateStr);
+    
+    const bin1_ini = parseFloat(document.getElementById('anti-bin1-ini').value) || 0;
+    const bin2_ini = parseFloat(document.getElementById('anti-bin2-ini').value) || 0;
+    const bin3_ini = parseFloat(document.getElementById('anti-bin3-ini').value) || 0;
+    
+    const bin1_fin = parseFloat(document.getElementById('anti-bin1-fin').value) || 0;
+    const bin2_fin = parseFloat(document.getElementById('anti-bin2-fin').value) || 0;
+    const bin3_fin = parseFloat(document.getElementById('anti-bin3-fin').value) || 0;
+    
+    const bin1_add = parseFloat(document.getElementById('anti-bin1-add').value) || 0;
+    const bin2_add = parseFloat(document.getElementById('anti-bin2-add').value) || 0;
+    const bin3_add = parseFloat(document.getElementById('anti-bin3-add').value) || 0;
+    
+    const total_ini = bin1_ini + bin2_ini + bin3_ini;
+    const total_fin = bin1_fin + bin2_fin + bin3_fin;
+    const total_add = bin1_add + bin2_add + bin3_add;
+    
+    document.getElementById('anti-total-ini-lbl').innerText = `${total_ini.toFixed(1)} kg`;
+    document.getElementById('anti-total-fin-lbl').innerText = `${total_fin.toFixed(1)} kg`;
+    document.getElementById('anti-total-add-lbl').innerText = `${total_add.toFixed(1)} kg`;
+    
+    const receivedTrucks = appData.aries.filter(row => {
+        const isSameDate = formatDateReadable(row.FECHAENTRA) === dateStr;
+        const isPurchase = Number(row.PESOARTIC) === 1;
+        const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
+        return isSameDate && isPurchase && !isRejected;
+    });
+    
+    const numTrucks = receivedTrucks.length;
+    const consTeo = numTrucks * 40.0;
+    
+    const consReal = total_ini + total_add - total_fin;
+    const diff = consReal - consTeo;
+    
+    document.getElementById('anti-calc-trucks').innerText = `${numTrucks} camión${numTrucks !== 1 ? 'es' : ''}`;
+    document.getElementById('anti-calc-teo').innerText = `${consTeo.toFixed(1)} kg`;
+    document.getElementById('anti-calc-real').innerText = `${consReal.toFixed(1)} kg`;
+    
+    let totalKilosDay = 0;
+    if (appData.aries) {
+        appData.aries.forEach(row => {
+            if (formatDateReadable(row.FECHAENTRA) === dateStr) {
+                const isPurchase = Number(row.PESOARTIC) === 1;
+                const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
+                if (isPurchase && isRejected) {
+                    return;
+                }
+                totalKilosDay += Number(row.PESOKILOS || row.CANTKILOSR || 0);
+            }
+        });
+    }
+    const total_tm = totalKilosDay / 1000;
+    document.getElementById('anti-total-tm').value = total_tm.toFixed(1);
+    
+    const pctLtsTm = total_tm > 0 ? (consReal / total_tm) * 100 : 0;
+    
+    const ingreso = calculateIngresoForDate(dateStr);
+    const inv_final = ingreso - consReal;
+    
+    document.getElementById('anti-calc-ingreso').innerText = `${ingreso.toFixed(1)} kg`;
+    document.getElementById('anti-calc-inv-final').innerText = `${inv_final.toFixed(1)} kg`;
+    document.getElementById('anti-calc-pct-lts-tm').innerText = `${pctLtsTm.toFixed(1)}%`;
+    
+    const diffEl = document.getElementById('anti-calc-diff');
+    diffEl.innerText = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)} kg`;
+    if (diff > 0) {
+        diffEl.style.color = 'var(--danger)';
+    } else if (diff < 0) {
+        diffEl.style.color = '#10B981';
+    } else {
+        diffEl.style.color = 'var(--text-main)';
+    }
+    
+    let diffPct = 0;
+    let kpiStatus = 'cumple';
+    
+    if (consTeo > 0) {
+        diffPct = (diff / consTeo) * 100;
+        if (Math.abs(diffPct) > 10) {
+            kpiStatus = 'fuera';
+        }
+    } else {
+        if (consReal > 0) {
+            diffPct = 100;
+            kpiStatus = 'fuera';
+        } else {
+            diffPct = 0;
+            kpiStatus = 'cumple';
+        }
+    }
+    
+    const pctEl = document.getElementById('anti-calc-diff-pct');
+    const badgeEl = document.getElementById('anti-calc-kpi-badge');
+    
+    if (pctEl) {
+        pctEl.innerText = `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%`;
+        if (kpiStatus === 'fuera') {
+            pctEl.style.color = 'var(--danger)';
+        } else {
+            pctEl.style.color = '#10B981';
+        }
+    }
+    
+    if (badgeEl) {
+        if (kpiStatus === 'cumple') {
+            badgeEl.innerText = 'CUMPLE TARGET';
+            badgeEl.style.background = '#10B981';
+        } else {
+            badgeEl.innerText = 'FUERA DE TARGET';
+            badgeEl.style.background = 'var(--danger)';
+        }
+    }
+    
+    document.getElementById('btn-save-antimicotico').disabled = false;
+}
+
+function saveAntimicotico() {
+    const dateStr = document.getElementById('antimicotico-date').value;
+    const bin1_ini = parseFloat(document.getElementById('anti-bin1-ini').value || 0);
+    const bin2_ini = parseFloat(document.getElementById('anti-bin2-ini').value || 0);
+    const bin3_ini = parseFloat(document.getElementById('anti-bin3-ini').value || 0);
+    const bin1_fin = parseFloat(document.getElementById('anti-bin1-fin').value || 0);
+    const bin2_fin = parseFloat(document.getElementById('anti-bin2-fin').value || 0);
+    const bin3_fin = parseFloat(document.getElementById('anti-bin3-fin').value || 0);
+    const bin1_add = parseFloat(document.getElementById('anti-bin1-add').value || 0);
+    const bin2_add = parseFloat(document.getElementById('anti-bin2-add').value || 0);
+    const bin3_add = parseFloat(document.getElementById('anti-bin3-add').value || 0);
+    const total_ini = parseFloat(document.getElementById('anti-total-ini').value || 0);
+    const total_fin = parseFloat(document.getElementById('anti-total-fin').value || 0);
+    const total_add = parseFloat(document.getElementById('anti-total-add').value || 0);
+    const numTrucks = parseInt(document.getElementById('anti-trucks-rcvd').value || 0, 10);
+    const consTeo = parseFloat(document.getElementById('anti-cons-teo').value || 0);
+    const consReal = parseFloat(document.getElementById('anti-cons-real').value || 0);
+    const diff = parseFloat(document.getElementById('anti-diferencia').value || 0);
+
+    const n_bodega = document.getElementById('anti-bodega') ? document.getElementById('anti-bodega').value : '';
+    const realizado_por = document.getElementById('anti-realizado') ? document.getElementById('anti-realizado').value : 'Karen Quijije';
+    const observacion = document.getElementById('anti-observacion') ? document.getElementById('anti-observacion').value : '';
+
+    if (!dateStr) {
+        showToast('Por favor seleccione una fecha', 'warning');
+        return;
+    }
+
+    const payload = {
+        fecha: dateStr,
+        bin1_ini: bin1_ini,
+        bin2_ini: bin2_ini,
+        bin3_ini: bin3_ini,
+        bin1_fin: bin1_fin,
+        bin2_fin: bin2_fin,
+        bin3_fin: bin3_fin,
+        bin1_add: bin1_add,
+        bin2_add: bin2_add,
+        bin3_add: bin3_add,
+        total_ini: total_ini,
+        total_fin: total_fin,
+        cant_agregada: total_add,
+        trucks_rcvd: numTrucks,
+        cons_teo: consTeo,
+        cons_real: consReal,
+        diferencia: diff,
+        bodega: n_bodega,
+        realizado_por: realizado_por,
+        observacion: observacion
+    };
+    
+    const loader = document.getElementById('sync-loader');
+    if (loader) {
+        const title = document.getElementById('sync-loader-title');
+        const msg = document.getElementById('sync-loader-msg');
+        if (title) title.innerText = 'Sincronizando con Supabase...';
+        if (msg) msg.innerText = 'Por favor espere. Guardando registro de antimicótico.';
+        loader.classList.add('active');
+    }
+    
+    fetch(`${SUPABASE_URL}/rest/v1/antimicotico`, {
+        method: 'POST',
+        headers: {
+            ...SUPABASE_HEADERS,
+            'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Error en la respuesta de Supabase");
+        if (loader) loader.classList.remove('active');
+        showToast('Consumo de antimicótico guardado en Supabase con éxito', 'success');
+        setTimeout(tryAutoLoadExcel, 500);
+    })
+    .catch(err => {
+        if (loader) loader.classList.remove('active');
+        console.error("Error al guardar consumo en Supabase:", err);
+        showToast('Error al guardar en Supabase: ' + err.message, 'danger');
+    });
+}
+
 function updateAntimicoticoInventoryBalance() {
     let totalIn = 0;
     let totalOut = 0;
