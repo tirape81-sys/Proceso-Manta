@@ -6,7 +6,7 @@
     <title>Planta Manta - Control de Calidad</title>
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="app.css?v=3.1">
+    <link rel="stylesheet" href="app.css?v=3.2">
     
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -42,6 +42,32 @@
             </div>
         </div>
     </div>
+    <script>
+        // Verificación de acceso inmediata e inmune a caché
+        window.checkLoginPassword = function() {
+            var passInput = document.getElementById('login-pass');
+            var pass = passInput ? passInput.value.trim() : '';
+            if (pass === "Calidad2026") {
+                try {
+                    sessionStorage.setItem('isCalidadAuthorized', 'true');
+                } catch(e) {
+                    console.warn('sessionStorage no disponible:', e);
+                }
+                var overlay = document.getElementById('login-overlay');
+                if (overlay) overlay.style.display = 'none';
+            } else {
+                var err = document.getElementById('login-error');
+                if (err) err.style.display = 'block';
+                if (passInput) passInput.value = '';
+            }
+        };
+        try {
+            if (sessionStorage.getItem('isCalidadAuthorized') === 'true') {
+                var overlay = document.getElementById('login-overlay');
+                if (overlay) overlay.style.display = 'none';
+            }
+        } catch(e) {}
+    </script>
 
     <!-- 0. PANTALLA DE CARGA DE ARCHIVO (UPLOAD SCREEN) -->
     <div id="file-upload-screen" class="upload-screen hidden">
@@ -723,6 +749,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=3.1"></script>
+    <script src="app.js?v=3.2"></script>
 </body>
 </html>
