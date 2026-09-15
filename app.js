@@ -251,6 +251,33 @@ const SUPABASE_HEADERS = {
     'Content-Type': 'application/json'
 };
 
+/**
+ * Descarga todos los registros de una tabla en Supabase manejando paginación automática (PostgREST límite 1000)
+ */
+async function fetchAllSupabasePages(endpoint) {
+    const PAGE_SIZE = 1000;
+    let allRecords = [];
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+        const separator = endpoint.includes('?') ? '&' : '?';
+        const pageUrl = `${endpoint}${separator}limit=${PAGE_SIZE}&offset=${offset}`;
+        const res = await fetch(pageUrl, { headers: SUPABASE_HEADERS });
+        if (!res.ok) {
+            throw new Error(`Error en descarga de datos (${res.status}): ${res.statusText}`);
+        }
+        const pageData = await res.json();
+        allRecords = allRecords.concat(pageData);
+        if (pageData.length < PAGE_SIZE) {
+            hasMore = false;
+        } else {
+            offset += PAGE_SIZE;
+        }
+    }
+    return allRecords;
+}
+
 // Cargar datos automáticamente desde Supabase (PostgreSQL Cloud)
 async function tryAutoLoadExcel() {
     console.log(`Cargando datos desde Supabase: ${SUPABASE_URL}`);
@@ -258,44 +285,23 @@ async function tryAutoLoadExcel() {
     const t0 = performance.now();
     
     try {
-        // Carga simultánea y ultra rápida en paralelo
-        const [resRecep, resCalid, resCm, resAnti, resIngr, resFoto] = await Promise.all([
-            fetch(`${SUPABASE_URL}/rest/v1/recepciones?select=*&order=fechaentra.desc`, { headers: SUPABASE_HEADERS }),
-            fetch(`${SUPABASE_URL}/rest/v1/calidad?select=*&order=fechaentra.desc`, { headers: SUPABASE_HEADERS }),
-            fetch(`${SUPABASE_URL}/rest/v1/contramuestras?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS }),
-            fetch(`${SUPABASE_URL}/rest/v1/antimicotico?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS }),
-            fetch(`${SUPABASE_URL}/rest/v1/antimicotico_ingresos?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS }),
-            fetch(`${SUPABASE_URL}/rest/v1/seguimiento_fotografico?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS }).catch(e => ({ ok: false }))
+        // Carga simultánea y paginada en paralelo de todas las tablas sin límite de 1000
+        const [dataRecep, dataCalid, dataCm, dataAnti, dataIngr, rawFoto] = await Promise.all([
+            fetchAllSupabasePages(`${SUPABASE_URL}/rest/v1/recepciones?select=*&order=fechaentra.desc`),
+            fetchAllSupabasePages(`${SUPABASE_URL}/rest/v1/calidad?select=*&order=fechaentra.desc`),
+            fetchAllSupabasePages(`${SUPABASE_URL}/rest/v1/contramuestras?select=*&order=fecha.desc`),
+            fetchAllSupabasePages(`${SUPABASE_URL}/rest/v1/antimicotico?select=*&order=fecha.desc`),
+            fetchAllSupabasePages(`${SUPABASE_URL}/rest/v1/antimicotico_ingresos?select=*&order=fecha.desc`),
+            fetchAllSupabasePages(`${SUPABASE_URL}/rest/v1/seguimiento_fotografico?select=*&order=fecha.desc`).catch(() => [])
         ]);
 
-        if (!resRecep.ok || !resCalid.ok || !resCm.ok) {
-            throw new Error("Respuesta no satisfactoria de Supabase");
-        }
-
-        const [dataRecep, dataCalid, dataCm, dataAnti, dataIngr] = await Promise.all([
-            resRecep.json(),
-            resCalid.json(),
-            resCm.json(),
-            resAnti.json(),
-            resIngr.json()
-        ]);
-
-        if (resFoto && resFoto.ok) {
-            try {
-                const rawFoto = await resFoto.json();
-                appData.seguimiento_fotografico = (rawFoto || []).map(r => {
-                    const obj = { ...r };
-                    const p = (r.planta || 'MANTA').toUpperCase();
-                    obj.planta = p;
-                    obj.PLANTA = p;
-                    return obj;
-                });
-            } catch(e) {
-                appData.seguimiento_fotografico = [];
-            }
-        } else {
-            appData.seguimiento_fotografico = [];
-        }
+        appData.seguimiento_fotografico = (rawFoto || []).map(r => {
+            const obj = { ...r };
+            const p = (r.planta || 'MANTA').toUpperCase();
+            obj.planta = p;
+            obj.PLANTA = p;
+            return obj;
+        });
 
         // 1. Mapear recepciones (Aries)
         appData.aries = dataRecep.map(r => {
@@ -728,8 +734,12 @@ function switchTab(tab) {
     } else if (tab === 'sync') {
         const elRecep = document.getElementById('sync-stat-recepciones');
         const elCalid = document.getElementById('sync-stat-calidad');
-        if (elRecep) elRecep.innerText = `${(appData.aries || []).length} boletos`;
-        if (elCalid) elCalid.innerText = `${(appData.calidad || []).length} análisis`;
+        const rManta = (appData.aries || []).filter(r => (r.planta || 'MANTA').toUpperCase() === 'MANTA').length;
+        const rBalzar = (appData.aries || []).filter(r => (r.planta || '').toUpperCase() === 'BALZAR').length;
+        const cManta = (appData.calidad || []).filter(r => (r.planta || 'MANTA').toUpperCase() === 'MANTA').length;
+        const cBalzar = (appData.calidad || []).filter(r => (r.planta || '').toUpperCase() === 'BALZAR').length;
+        if (elRecep) elRecep.innerText = `${(appData.aries || []).length} boletos (Manta: ${rManta} | Balzar: ${rBalzar})`;
+        if (elCalid) elCalid.innerText = `${(appData.calidad || []).length} análisis (Manta: ${cManta} | Balzar: ${cBalzar})`;
     }
 }
 
@@ -1272,6 +1282,7 @@ function renderDashboardStats(selectedMonth) {
     renderStatusChart(selectedMonth);
     renderDashboardDrilldownTable();
     updateFotograficoKPIs(selectedMonth);
+    updateControlsMatrixTable(selectedMonth);
 }
 
 // ==============================================================================
