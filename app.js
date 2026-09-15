@@ -3562,16 +3562,23 @@ function exportAntimicoticoReport() {
                     </tr>
                 </table>
 
-                <div style="display: flex; gap: 14px; margin-bottom: 12px;">
-                    <div style="flex: 1; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; text-align: center;">
-                        <div style="font-size: 8pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Total Ingresos Registrados</div>
-                        <div style="font-size: 14pt; font-weight: bold; color: #0284c7; margin-top: 2px;">${filtered.length} lotes</div>
-                    </div>
-                    <div style="flex: 1; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px 12px; text-align: center;">
-                        <div style="font-size: 8pt; color: #166534; font-weight: bold; text-transform: uppercase;">Volumen Total Ingresado</div>
-                        <div style="font-size: 14pt; font-weight: bold; color: #15803d; margin-top: 2px;">${totalKg.toFixed(1)} Kg / L</div>
-                    </div>
-                </div>
+                <!-- Summary KPI Table -->
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
+                    <tr>
+                        <td style="width: 50%; padding: 0 6px 0 0;">
+                            <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; text-align: center;">
+                                <div style="font-size: 8pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Total Ingresos Registrados</div>
+                                <div style="font-size: 14pt; font-weight: bold; color: #0284c7; margin-top: 2px;">${filtered.length} lotes</div>
+                            </div>
+                        </td>
+                        <td style="width: 50%; padding: 0 0 0 6px;">
+                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px; text-align: center;">
+                                <div style="font-size: 8pt; color: #166534; font-weight: bold; text-transform: uppercase;">Volumen Total Ingresado</div>
+                                <div style="font-size: 14pt; font-weight: bold; color: #15803d; margin-top: 2px;">${totalKg.toFixed(1)} Kg / L</div>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
 
                 <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
                     <thead>
@@ -3722,31 +3729,43 @@ function exportAntimicoticoReport() {
                     </tr>
                 </table>
 
-                <!-- Summary KPI Cards -->
-                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                    <div style="flex: 1; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 8px; text-align: center;">
-                        <div style="font-size: 7pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Consumo Real Total</div>
-                        <div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-top: 1px;">${sumConsReal.toFixed(1)} L</div>
-                    </div>
-                    <div style="flex: 1; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 8px; text-align: center;">
-                        <div style="font-size: 7pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Consumo Teórico Total</div>
-                        <div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-top: 1px;">${sumConsTeo.toFixed(1)} L</div>
-                    </div>
-                    <div style="flex: 1; background: ${diffGlobal <= 0 ? '#f0fdf4' : '#fef2f2'}; border: 1px solid ${diffGlobal <= 0 ? '#bbf7d0' : '#fecaca'}; border-radius: 4px; padding: 6px 8px; text-align: center;">
-                        <div style="font-size: 7pt; color: ${diffGlobal <= 0 ? '#166534' : '#991b1b'}; font-weight: bold; text-transform: uppercase;">Diferencia Acumulada</div>
-                        <div style="font-size: 11.5pt; font-weight: bold; color: ${diffGlobal <= 0 ? '#15803d' : '#b91c1c'}; margin-top: 1px;">
-                            ${diffGlobal > 0 ? '+' : ''}${diffGlobal.toFixed(1)} L
-                        </div>
-                    </div>
-                    <div style="flex: 1; background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; padding: 6px 8px; text-align: center;">
-                        <div style="font-size: 7pt; color: #92400e; font-weight: bold; text-transform: uppercase;">Adherencia Global</div>
-                        <div style="font-size: 11.5pt; font-weight: bold; color: #d97706; margin-top: 1px;">${adherenceGlobal}%</div>
-                    </div>
-                    <div style="flex: 1; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 6px 8px; text-align: center;">
-                        <div style="font-size: 7pt; color: #166534; font-weight: bold; text-transform: uppercase;">Carros / TM Maíz</div>
-                        <div style="font-size: 11.5pt; font-weight: bold; color: #15803d; margin-top: 1px;">${sumTrucks} carros / ${sumTotalTm.toFixed(0)} Tn</div>
-                    </div>
-                </div>
+                <!-- Summary KPI Cards (Table layout for 100% html2canvas compatibility) -->
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+                    <tr>
+                        <td style="width: 20%; padding: 0 3px 0 0;">
+                            <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 4px; text-align: center;">
+                                <div style="font-size: 7pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Consumo Real</div>
+                                <div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-top: 1px;">${sumConsReal.toFixed(1)} L</div>
+                            </div>
+                        </td>
+                        <td style="width: 20%; padding: 0 3px;">
+                            <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 4px; text-align: center;">
+                                <div style="font-size: 7pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Consumo Teórico</div>
+                                <div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-top: 1px;">${sumConsTeo.toFixed(1)} L</div>
+                            </div>
+                        </td>
+                        <td style="width: 20%; padding: 0 3px;">
+                            <div style="background: ${diffGlobal <= 0 ? '#f0fdf4' : '#fef2f2'}; border: 1px solid ${diffGlobal <= 0 ? '#bbf7d0' : '#fecaca'}; border-radius: 4px; padding: 6px 4px; text-align: center;">
+                                <div style="font-size: 7pt; color: ${diffGlobal <= 0 ? '#166534' : '#991b1b'}; font-weight: bold; text-transform: uppercase;">Diferencia</div>
+                                <div style="font-size: 11.5pt; font-weight: bold; color: ${diffGlobal <= 0 ? '#15803d' : '#b91c1c'}; margin-top: 1px;">
+                                    ${diffGlobal > 0 ? '+' : ''}${diffGlobal.toFixed(1)} L
+                                </div>
+                            </div>
+                        </td>
+                        <td style="width: 20%; padding: 0 3px;">
+                            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; padding: 6px 4px; text-align: center;">
+                                <div style="font-size: 7pt; color: #92400e; font-weight: bold; text-transform: uppercase;">Adherencia</div>
+                                <div style="font-size: 11.5pt; font-weight: bold; color: #d97706; margin-top: 1px;">${adherenceGlobal}%</div>
+                            </div>
+                        </td>
+                        <td style="width: 20%; padding: 0 0 0 3px;">
+                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 6px 4px; text-align: center;">
+                                <div style="font-size: 7pt; color: #166534; font-weight: bold; text-transform: uppercase;">Carros / TM</div>
+                                <div style="font-size: 11.5pt; font-weight: bold; color: #15803d; margin-top: 1px;">${sumTrucks} / ${sumTotalTm.toFixed(0)} Tn</div>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
 
                 <!-- Table of Logs -->
                 <table style="width: 100%; border-collapse: collapse; margin-top: 4px;">
@@ -3775,38 +3794,20 @@ function exportAntimicoticoReport() {
         `;
     }
 
-    // Attach to document body offscreen with exact dimensions for flawless html2canvas rendering
-    const printContainer = document.createElement('div');
-    printContainer.id = 'temp-antimicotico-pdf';
-    printContainer.style.position = 'fixed';
-    printContainer.style.left = '-9999px';
-    printContainer.style.top = '0';
-    printContainer.style.width = '1080px';
-    printContainer.style.background = '#ffffff';
-    printContainer.style.zIndex = '-9999';
-    printContainer.innerHTML = htmlContent;
-    document.body.appendChild(printContainer);
-
     const opt = {
         margin:       [0.3, 0.3, 0.3, 0.3],
         filename:     reportFilename,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+        html2canvas:  { scale: 2.5, useCORS: true, logging: false },
         jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
     };
 
     showToast('Generando reporte PDF de antimicótico...', 'info');
 
-    html2pdf().set(opt).from(printContainer).save().then(() => {
-        if (document.body.contains(printContainer)) {
-            document.body.removeChild(printContainer);
-        }
+    html2pdf().set(opt).from(htmlContent).save().then(() => {
         showToast('Reporte PDF descargado con éxito', 'success');
     }).catch(err => {
         console.error('Error al generar PDF de antimicótico:', err);
-        if (document.body.contains(printContainer)) {
-            document.body.removeChild(printContainer);
-        }
         showToast('Error al generar PDF: ' + (err.message || 'Error en renderizado'), 'danger');
     });
 }
