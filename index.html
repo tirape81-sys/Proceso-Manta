@@ -6,7 +6,7 @@
     <title>Planta Manta - Control de Calidad</title>
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="app.css?v=3.7">
+    <link rel="stylesheet" href="app.css?v=3.8">
     
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -215,62 +215,68 @@
 
                 <!-- Stats Cards Grid -->
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card interactive-kpi" id="kpi-card-compras" onclick="onKpiCardClick('compras')">
                         <div class="stat-info">
                             <h3>Total Comprado</h3>
                             <div id="stat-purchased" class="value">0 <span class="unit">Tn</span></div>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-filter"></i> Clic para filtrar compras</span>
                         </div>
                         <div class="stat-icon primary">
                             <i class="fa-solid fa-cart-shopping"></i>
                         </div>
                     </div>
                     
-                    <div class="stat-card">
+                    <div class="stat-card interactive-kpi" id="kpi-card-despachos" onclick="onKpiCardClick('despachos')">
                         <div class="stat-info">
                             <h3>Total Despachado</h3>
                             <div id="stat-dispatched" class="value">0 <span class="unit">Tn</span></div>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-filter"></i> Clic para filtrar despachos</span>
                         </div>
                         <div class="stat-icon secondary">
                             <i class="fa-solid fa-truck-ramp-box"></i>
                         </div>
                     </div>
                     
-                    <div class="stat-card">
+                    <div class="stat-card interactive-kpi" id="kpi-card-all" onclick="onKpiCardClick('all')">
                         <div class="stat-info">
                             <h3>Tickets Recibidos</h3>
                             <div id="stat-received-tickets" class="value">0</div>
                             <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;" id="stat-received-tickets-total">Total: 0 boletos</span>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-layer-group"></i> Clic para ver todos</span>
                         </div>
                         <div class="stat-icon info" style="background: rgba(59, 130, 246, 0.1); color: #3B82F6;">
                             <i class="fa-solid fa-ticket"></i>
                         </div>
                     </div>
                     
-                    <div class="stat-card">
+                    <div class="stat-card interactive-kpi" id="kpi-card-rechazados" onclick="onKpiCardClick('rechazados')">
                         <div class="stat-info">
                             <h3>Boletos Rechazados</h3>
                             <div id="stat-rejected" class="value">0</div>
+                            <span class="interactive-kpi-hint" style="color: #EF4444;"><i class="fa-solid fa-triangle-exclamation"></i> Clic para ver rechazados</span>
                         </div>
                         <div class="stat-icon danger">
                             <i class="fa-solid fa-circle-xmark"></i>
                         </div>
                     </div>
                     
-                    <div class="stat-card">
+                    <div class="stat-card interactive-kpi" onclick="switchTab('contramuestra')">
                         <div class="stat-info">
                             <h3>Contramuestras Realizadas</h3>
                             <div id="stat-contramuestras" class="value">0</div>
                             <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;" id="stat-contramuestras-pct">% Muestreo: 0.0%</span>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-arrow-right"></i> Ir a Contramuestras</span>
                         </div>
                         <div class="stat-icon accent">
                             <i class="fa-solid fa-flask"></i>
                         </div>
                     </div>
 
-                    <div class="stat-card">
+                    <div class="stat-card interactive-kpi" onclick="switchTab('antimicotico')">
                         <div class="stat-info">
                             <h3>Adherencia Antimicótico</h3>
                             <div id="stat-antimicotico-kpi" class="value">-%</div>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-arrow-right"></i> Ir a Antimicótico</span>
                         </div>
                         <div class="stat-icon warning" style="background: rgba(245, 158, 11, 0.1); color: #F59E0B;">
                             <i class="fa-solid fa-gauge-high"></i>
@@ -281,66 +287,100 @@
                 <!-- Charts Layout Grid -->
                 <div class="charts-grid">
                     <div class="chart-card">
-                        <h3>Volumen Diario de Maíz (Compras vs Despachos)</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                            <h3 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-chart-column" style="color: #4BAF4F;"></i> Volumen de Maíz (Compras vs Despachos)
+                            </h3>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <button class="btn-chart-mode active" id="btn-chart-daily" onclick="setVolumeChartMode('daily')">Diario</button>
+                                <button class="btn-chart-mode" id="btn-chart-weekly" onclick="setVolumeChartMode('weekly')">Semanal</button>
+                                <button class="btn-chart-mode" id="btn-chart-accum" onclick="setVolumeChartMode('accum')">Acumulado</button>
+                            </div>
+                        </div>
                         <div style="height: 300px; position: relative;">
                             <canvas id="volumeChart"></canvas>
                         </div>
+                        <div style="text-align: right; margin-top: 6px;">
+                            <span style="font-size: 0.72rem; color: var(--text-muted);"><i class="fa-solid fa-hand-pointer"></i> Haz clic en una barra para filtrar esa fecha en la tabla</span>
+                        </div>
                     </div>
                     <div class="chart-card">
-                        <h3>Estados de Recepción</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-chart-pie" style="color: #10B981;"></i> Estados de Recepción
+                            </h3>
+                            <span style="font-size: 0.72rem; color: var(--text-muted);"><i class="fa-solid fa-hand-pointer"></i> Clic en sector para filtrar</span>
+                        </div>
                         <div style="height: 300px; position: relative; display: flex; justify-content: center;">
                             <canvas id="statusChart"></canvas>
                         </div>
                     </div>
                 </div>
 
-                <!-- Controles de Seguimiento Section -->
-                <div class="chart-card" style="margin-top: 24px; width: 100%;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px;">
-                        <h3 style="margin: 0; color: var(--text-main); font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fa-solid fa-shield-halved" style="color: #E2001A;"></i> Matriz de Seguimiento de Controles
-                        </h3>
-                        <span style="font-size: 0.8rem; color: var(--text-muted);">Configure los parámetros manuales aquí abajo para incluirlos en el PDF</span>
-                    </div>
-                    
-                    <!-- Manual Inputs Grid -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; background: rgba(226, 0, 26, 0.03); border: 1px solid rgba(226, 0, 26, 0.1); padding: 16px; border-radius: 8px;">
-                        <div class="input-group">
-                            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Foto Compras (Evidencia):</label>
-                            <input type="number" id="ctrl-foto-compras" value="50" min="0" oninput="updateControlsMatrixTable()" style="width: 100%; border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; background: var(--bg-card); color: var(--text-main); font-family: inherit; font-size: 0.9rem;">
+                <!-- Panel Interactivo de Detalle y Exploración (Reemplaza Matriz de Seguimiento) -->
+                <div class="card" style="margin-top: 24px; width: 100%; padding: 22px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+                    <!-- Header del Panel -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; border-bottom: 1px solid var(--border-color); padding-bottom: 14px;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.15rem; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-list-check" style="color: #0284c7;"></i> Explorador Interactivo de Boletos y Calidad
+                            </h3>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Haz clic en los gráficos, tarjetas KPI o filtros para auditar y consultar al detalle cada viaje recibido.</span>
                         </div>
-                        <div class="input-group">
-                            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Foto Transferencias (Evidencia):</label>
-                            <input type="number" id="ctrl-foto-transf" value="42" min="0" oninput="updateControlsMatrixTable()" style="width: 100%; border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; background: var(--bg-card); color: var(--text-main); font-family: inherit; font-size: 0.9rem;">
+                        
+                        <!-- Badge de Filtro Activo Dinámico -->
+                        <div id="dashboard-active-filter-tag" style="display: none; align-items: center; gap: 8px; background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); border-radius: 20px; padding: 5px 14px; font-size: 0.82rem; color: #0284c7; font-weight: 600;">
+                            <i class="fa-solid fa-filter"></i> <span id="dashboard-active-filter-text">Filtro: Todos</span>
+                            <button onclick="clearDashboardDrilldownFilter()" title="Quitar filtro y ver todos" style="background: none; border: none; color: #0284c7; cursor: pointer; font-size: 0.9rem; padding: 0 2px; margin-left: 4px;"><i class="fa-solid fa-circle-xmark"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Filtros Rápidos y Buscador en Vivo -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px;">
+                        <!-- Pills de Filtrado -->
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="dashboard-filter-pills">
+                            <button class="filter-pill active" id="pill-all" onclick="setDashboardTableFilter('all', this)"><i class="fa-solid fa-layer-group"></i> Todos (<span id="pill-count-all">0</span>)</button>
+                            <button class="filter-pill pill-compras" id="pill-compras" onclick="setDashboardTableFilter('compras', this)"><i class="fa-solid fa-cart-shopping"></i> Compras (<span id="pill-count-compras">0</span>)</button>
+                            <button class="filter-pill pill-despachos" id="pill-despachos" onclick="setDashboardTableFilter('despachos', this)"><i class="fa-solid fa-truck-ramp-box"></i> Despachos (<span id="pill-count-despachos">0</span>)</button>
+                            <button class="filter-pill pill-aceptados" id="pill-aceptados" onclick="setDashboardTableFilter('aceptados', this)"><i class="fa-solid fa-circle-check"></i> Aceptados (<span id="pill-count-aceptados">0</span>)</button>
+                            <button class="filter-pill pill-rechazados" id="pill-rechazados" onclick="setDashboardTableFilter('rechazados', this)"><i class="fa-solid fa-circle-xmark"></i> Rechazados (<span id="pill-count-rechazados">0</span>)</button>
                         </div>
 
-                        <div class="input-group">
-                            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Hallazgos Totales:</label>
-                            <input type="number" id="ctrl-hallazgos-totales" value="3" min="0" oninput="updateControlsMatrixTable()" style="width: 100%; border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; background: var(--bg-card); color: var(--text-main); font-family: inherit; font-size: 0.9rem;">
-                        </div>
-                        <div class="input-group">
-                            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Hallazgos Cerrados:</label>
-                            <input type="number" id="ctrl-hallazgos-cerrados" value="2" min="0" oninput="updateControlsMatrixTable()" style="width: 100%; border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; background: var(--bg-card); color: var(--text-main); font-family: inherit; font-size: 0.9rem;">
+                        <!-- Buscador Instantáneo -->
+                        <div style="position: relative; min-width: 260px; flex: 1; max-width: 400px;">
+                            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.85rem;"></i>
+                            <input type="text" id="dashboard-table-search" oninput="onDashboardSearchInput()" placeholder="Buscar por ticket, placa, chofer, proveedor..." style="width: 100%; padding: 8px 12px 8px 34px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem; background: var(--bg-body); color: var(--text-main); font-family: inherit; outline: none; transition: border-color 0.2s;">
                         </div>
                     </div>
-                    
-                    <!-- Table Preview -->
-                    <div class="table-wrapper">
-                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+
+                    <!-- Tabla Interactiva -->
+                    <div class="table-wrapper" style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 10px;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;" id="dashboard-drilldown-table">
                             <thead>
                                 <tr style="background: var(--bg-body); color: var(--text-main);">
-                                    <th style="padding: 10px; border-bottom: 2px solid var(--border-color); width: 20%;">Actividad</th>
-                                    <th style="padding: 10px; border-bottom: 2px solid var(--border-color); width: 28%;">Objetivo / Qué se revisa</th>
-                                    <th style="padding: 10px; border-bottom: 2px solid var(--border-color); width: 20%;">Indicador</th>
-                                    <th style="padding: 10px; border-bottom: 2px solid var(--border-color); width: 14%;">Valor Puntual</th>
-                                    <th style="padding: 10px; border-bottom: 2px solid var(--border-color); width: 10%;">Porcentaje</th>
-                                    <th style="padding: 10px; border-bottom: 2px solid var(--border-color); width: 8%;">Estado</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600;">Ticket #</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600;">Fecha / Hora</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600;">Tipo</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600;">Placa</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600;">Proveedor / Chofer</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600; text-align: right;">Peso Neto</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600; text-align: center;">Humedad / Imp.</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600; text-align: center;">Estado</th>
+                                    <th style="padding: 10px 14px; border-bottom: 2px solid var(--border-color); font-weight: 600; text-align: center;">Acción</th>
                                 </tr>
                             </thead>
-                            <tbody id="controls-matrix-tbody">
+                            <tbody id="dashboard-drilldown-tbody">
                                 <!-- Populated dynamically -->
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Paginación y Resumen Inferior -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; flex-wrap: wrap; gap: 10px; font-size: 0.82rem; color: var(--text-muted);">
+                        <div id="dashboard-table-pagination-info">Mostrando 0 de 0 registros</div>
+                        <div style="display: flex; gap: 6px; align-items: center;" id="dashboard-table-pagination-controls">
+                            <!-- Populated dynamically -->
+                        </div>
                     </div>
                 </div>
 
@@ -1024,6 +1064,21 @@
         </div>
     </div>
 
+    <!-- Dashboard Ticket Detail Modal -->
+    <div id="dashboard-ticket-modal" class="modal-overlay" style="display: none;" onclick="closeDashboardTicketModalOnOuterClick(event)">
+        <div class="modal-card" style="max-width: 680px; width: 92%;">
+            <div class="modal-header">
+                <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-solid fa-receipt" style="color: #0284c7;"></i> Detalle de Boleto #<span id="dtm-ticket-num"></span>
+                </h3>
+                <button class="modal-close-btn" onclick="closeDashboardTicketModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="dtm-body" style="padding: 20px; max-height: 80vh; overflow-y: auto;">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+
     <!-- Ticket Detail Modal -->
     <div id="ticket-modal" class="modal-overlay" style="display: none;" onclick="closeTicketModalOnOuterClick(event)">
         <div class="modal-card">
@@ -1161,6 +1216,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=3.7"></script>
+    <script src="app.js?v=3.8"></script>
 </body>
 </html>

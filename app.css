@@ -1329,3 +1329,197 @@ input:disabled {
     }
 }
 
+/* ============================================================================== */
+/* INTERACTIVE DASHBOARD ELEMENTS */
+/* ============================================================================== */
+.stat-card.interactive-kpi {
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+}
+.stat-card.interactive-kpi:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 22px -5px rgba(0, 0, 0, 0.1);
+    border-color: #0284c7;
+}
+.stat-card.interactive-kpi.active-kpi {
+    border-color: #E2001A !important;
+    background: rgba(226, 0, 26, 0.04) !important;
+    box-shadow: 0 0 0 2px rgba(226, 0, 26, 0.25), 0 8px 20px -5px rgba(226, 0, 26, 0.15);
+}
+.interactive-kpi-hint {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    opacity: 0.75;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+}
+.stat-card.interactive-kpi:hover .interactive-kpi-hint {
+    opacity: 1;
+    color: #0284c7;
+}
+
+/* CHART MODE BUTTONS */
+.btn-chart-mode {
+    background: var(--bg-body, #F3F4F6);
+    border: 1px solid var(--border-color, #E5E7EB);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted, #64748B);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+.btn-chart-mode:hover {
+    border-color: #4BAF4F;
+    color: #4BAF4F;
+}
+.btn-chart-mode.active {
+    background: #4BAF4F;
+    border-color: #4BAF4F;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(75, 175, 79, 0.3);
+}
+
+/* FILTER PILLS */
+.filter-pill {
+    background: var(--bg-body, #F3F4F6);
+    border: 1px solid var(--border-color, #E5E7EB);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted, #64748B);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: inherit;
+}
+.filter-pill:hover {
+    border-color: var(--text-main, #1E293B);
+    color: var(--text-main, #1E293B);
+}
+.filter-pill.active {
+    background: #1E293B;
+    border-color: #1E293B;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(30, 41, 59, 0.2);
+}
+.filter-pill.pill-compras.active {
+    background: #10B981;
+    border-color: #10B981;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+}
+.filter-pill.pill-despachos.active {
+    background: #E2001A;
+    border-color: #E2001A;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(226, 0, 26, 0.25);
+}
+.filter-pill.pill-aceptados.active {
+    background: #059669;
+    border-color: #059669;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+}
+.filter-pill.pill-rechazados.active {
+    background: #DC2626;
+    border-color: #DC2626;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+}
+
+/* BADGES FOR TABLE */
+.badge-type {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.badge-type.compra {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+}
+.badge-type.despacho {
+    background: rgba(226, 0, 26, 0.1);
+    color: #E2001A;
+}
+
+.badge-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.badge-status-pill.accepted {
+    background: #10B981;
+    color: white;
+}
+.badge-status-pill.rejected {
+    background: #EF4444;
+    color: white;
+}
+.badge-status-pill.pending {
+    background: #9CA3AF;
+    color: white;
+}
+
+.btn-detail-sm {
+    background: var(--bg-body, #F3F4F6);
+    border: 1px solid var(--border-color, #E5E7EB);
+    color: var(--text-main, #1E293B);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.btn-detail-sm:hover {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
+}
+
+.pagination-btn {
+    background: var(--bg-body, #F3F4F6);
+    border: 1px solid var(--border-color, #E5E7EB);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.pagination-btn:hover:not(:disabled) {
+    background: var(--text-main);
+    color: white;
+}
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.pagination-btn.active {
+    background: #0284c7;
+    color: white;
+    border-color: #0284c7;
+}
+
+

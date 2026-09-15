@@ -1050,6 +1050,115 @@ function renderDashboardStats(selectedMonth) {
 
     renderVolumeChart(selectedMonth);
     renderStatusChart(selectedMonth);
+    renderDashboardDrilldownTable();
+}
+
+// ==============================================================================
+// INTERACTIVE DASHBOARD SYSTEM
+// ==============================================================================
+let currentVolumeChartMode = 'daily'; // 'daily', 'weekly', 'accum'
+let dashboardFilter = {
+    type: 'all',      // 'all', 'compras', 'despachos', 'aceptados', 'rechazados'
+    date: null,       // 'YYYY-MM-DD' or null
+    search: '',
+    page: 1,
+    pageSize: 10
+};
+
+function setVolumeChartMode(mode) {
+    currentVolumeChartMode = mode;
+    ['daily', 'weekly', 'accum'].forEach(m => {
+        const btn = document.getElementById(`btn-chart-${m}`);
+        if (btn) {
+            if (m === mode) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    });
+    const select = document.getElementById('dashboard-month-filter');
+    const selectedMonth = select ? select.value : 'all';
+    renderVolumeChart(selectedMonth);
+}
+
+function onKpiCardClick(type) {
+    if (type === 'contramuestra' || type === 'antimicotico') {
+        switchTab(type);
+        return;
+    }
+    if (dashboardFilter.type === type && !dashboardFilter.date) {
+        dashboardFilter.type = 'all';
+    } else {
+        dashboardFilter.type = type;
+    }
+    dashboardFilter.page = 1;
+    updateKpiCardActiveStates();
+    updateFilterPillActiveStates();
+    renderDashboardDrilldownTable();
+}
+
+function setDashboardTableFilter(type, btnEl) {
+    dashboardFilter.type = type;
+    dashboardFilter.page = 1;
+    updateKpiCardActiveStates();
+    updateFilterPillActiveStates();
+    renderDashboardDrilldownTable();
+}
+
+function filterDashboardByDate(dateStr) {
+    if (dashboardFilter.date === dateStr) {
+        dashboardFilter.date = null;
+        showToast('Filtro de fecha removido. Mostrando todas las fechas.', 'info');
+    } else {
+        dashboardFilter.date = dateStr;
+        dashboardFilter.page = 1;
+        showToast(`Filtrando por fecha: ${dateStr}`, 'info');
+    }
+    renderDashboardDrilldownTable();
+}
+
+function clearDashboardDrilldownFilter() {
+    dashboardFilter.date = null;
+    dashboardFilter.type = 'all';
+    dashboardFilter.search = '';
+    dashboardFilter.page = 1;
+    const searchInput = document.getElementById('dashboard-table-search');
+    if (searchInput) searchInput.value = '';
+    updateKpiCardActiveStates();
+    updateFilterPillActiveStates();
+    renderDashboardDrilldownTable();
+}
+
+function onDashboardSearchInput() {
+    const input = document.getElementById('dashboard-table-search');
+    dashboardFilter.search = input ? input.value.trim().toLowerCase() : '';
+    dashboardFilter.page = 1;
+    renderDashboardDrilldownTable();
+}
+
+function updateKpiCardActiveStates() {
+    const cardCompras = document.getElementById('kpi-card-compras');
+    const cardDespachos = document.getElementById('kpi-card-despachos');
+    const cardAll = document.getElementById('kpi-card-all');
+    const cardRechazados = document.getElementById('kpi-card-rechazados');
+
+    [cardCompras, cardDespachos, cardAll, cardRechazados].forEach(c => {
+        if (c) c.classList.remove('active-kpi');
+    });
+
+    if (dashboardFilter.type === 'compras' && cardCompras) cardCompras.classList.add('active-kpi');
+    else if (dashboardFilter.type === 'despachos' && cardDespachos) cardDespachos.classList.add('active-kpi');
+    else if (dashboardFilter.type === 'rechazados' && cardRechazados) cardRechazados.classList.add('active-kpi');
+    else if (dashboardFilter.type === 'all' && cardAll) cardAll.classList.add('active-kpi');
+}
+
+function updateFilterPillActiveStates() {
+    const pills = ['all', 'compras', 'despachos', 'aceptados', 'rechazados'];
+    pills.forEach(p => {
+        const btn = document.getElementById(`pill-${p}`);
+        if (btn) {
+            if (p === dashboardFilter.type) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    });
 }
 
 // RENDER CHARTS
@@ -1078,49 +1187,96 @@ function renderVolumeChart(selectedMonth) {
     });
 
     const dates = Object.keys(dailyData).sort((a, b) => new Date(a) - new Date(b));
-    const purchaseVols = dates.map(d => dailyData[d].compra);
-    const dispatchVols = dates.map(d => dailyData[d].despacho);
 
-    const adherenceVols = dates.map(d => {
-        if (!appData.antimicotico) return null;
-        const antiRow = appData.antimicotico.find(row => formatDateReadable(row.FECHA) === d);
-        if (!antiRow) return null;
-        
-        const consTeo = parseFloat(antiRow.CONS_TEO || 0);
-        const consReal = parseFloat(antiRow.CONS_REAL || 0);
-        if (consTeo > 0) {
-            return parseFloat(((consReal / consTeo) * 100).toFixed(1));
-        } else if (consReal > 0) {
-            return 200; // Cap visual a 200%
-        }
-        return 100;
-    });
+    let chartLabels = [];
+    let purchaseVols = [];
+    let dispatchVols = [];
+    let adherenceVols = [];
+
+    if (currentVolumeChartMode === 'daily') {
+        chartLabels = dates;
+        purchaseVols = dates.map(d => dailyData[d].compra);
+        dispatchVols = dates.map(d => dailyData[d].despacho);
+        adherenceVols = dates.map(d => {
+            if (!appData.antimicotico) return null;
+            const antiRow = appData.antimicotico.find(row => formatDateReadable(row.FECHA) === d);
+            if (!antiRow) return null;
+            const consTeo = parseFloat(antiRow.CONS_TEO || 0);
+            const consReal = parseFloat(antiRow.CONS_REAL || 0);
+            if (consTeo > 0) return parseFloat(((consReal / consTeo) * 100).toFixed(1));
+            else if (consReal > 0) return 200;
+            return 100;
+        });
+    } else if (currentVolumeChartMode === 'weekly') {
+        const weekMap = {};
+        dates.forEach(d => {
+            const dt = new Date(d);
+            const oneJan = new Date(dt.getFullYear(), 0, 1);
+            const numberOfDays = Math.floor((dt - oneJan) / (24 * 60 * 60 * 1000));
+            const weekNum = Math.ceil((dt.getDay() + 1 + numberOfDays) / 7);
+            const weekKey = `Sem ${weekNum} (${d.substring(5)})`;
+            if (!weekMap[weekKey]) weekMap[weekKey] = { compra: 0, despacho: 0, antiCount: 0, antiTotal: 0 };
+            weekMap[weekKey].compra += dailyData[d].compra;
+            weekMap[weekKey].despacho += dailyData[d].despacho;
+
+            if (appData.antimicotico) {
+                const antiRow = appData.antimicotico.find(row => formatDateReadable(row.FECHA) === d);
+                if (antiRow) {
+                    const consTeo = parseFloat(antiRow.CONS_TEO || 0);
+                    const consReal = parseFloat(antiRow.CONS_REAL || 0);
+                    if (consTeo > 0) {
+                        weekMap[weekKey].antiTotal += (consReal / consTeo) * 100;
+                        weekMap[weekKey].antiCount++;
+                    }
+                }
+            }
+        });
+        chartLabels = Object.keys(weekMap);
+        purchaseVols = chartLabels.map(k => weekMap[k].compra);
+        dispatchVols = chartLabels.map(k => weekMap[k].despacho);
+        adherenceVols = chartLabels.map(k => weekMap[k].antiCount > 0 ? parseFloat((weekMap[k].antiTotal / weekMap[k].antiCount).toFixed(1)) : null);
+    } else if (currentVolumeChartMode === 'accum') {
+        chartLabels = dates;
+        let runCompra = 0;
+        let runDespacho = 0;
+        dates.forEach(d => {
+            runCompra += dailyData[d].compra;
+            runDespacho += dailyData[d].despacho;
+            purchaseVols.push(parseFloat(runCompra.toFixed(1)));
+            dispatchVols.push(parseFloat(runDespacho.toFixed(1)));
+        });
+        adherenceVols = dates.map(() => null);
+    }
 
     const ctx = document.getElementById('volumeChart').getContext('2d');
     charts.volume = new Chart(ctx, {
-        type: 'bar',
+        type: currentVolumeChartMode === 'accum' ? 'line' : 'bar',
         data: {
-            labels: dates,
+            labels: chartLabels,
             datasets: [
                 {
-                    label: 'Compras (Tn)',
+                    label: currentVolumeChartMode === 'accum' ? 'Compras Acumuladas (Tn)' : 'Compras (Tn)',
                     data: purchaseVols,
-                    backgroundColor: 'rgba(75, 175, 79, 0.75)',
+                    backgroundColor: currentVolumeChartMode === 'accum' ? 'rgba(75, 175, 79, 0.15)' : 'rgba(75, 175, 79, 0.75)',
                     borderColor: '#4BAF4F',
-                    borderWidth: 1,
+                    borderWidth: currentVolumeChartMode === 'accum' ? 2.5 : 1,
+                    fill: currentVolumeChartMode === 'accum',
+                    tension: 0.25,
                     borderRadius: 4,
                     yAxisID: 'y'
                 },
                 {
-                    label: 'Despachos (Tn)',
+                    label: currentVolumeChartMode === 'accum' ? 'Despachos Acumulados (Tn)' : 'Despachos (Tn)',
                     data: dispatchVols,
-                    backgroundColor: 'rgba(227, 6, 19, 0.75)',
+                    backgroundColor: currentVolumeChartMode === 'accum' ? 'rgba(227, 6, 19, 0.12)' : 'rgba(227, 6, 19, 0.75)',
                     borderColor: '#E30613',
-                    borderWidth: 1,
+                    borderWidth: currentVolumeChartMode === 'accum' ? 2.5 : 1,
+                    fill: currentVolumeChartMode === 'accum',
+                    tension: 0.25,
                     borderRadius: 4,
                     yAxisID: 'y'
                 },
-                {
+                ...(currentVolumeChartMode !== 'accum' ? [{
                     label: 'Adherencia Antimicótico (%)',
                     data: adherenceVols,
                     type: 'line',
@@ -1132,21 +1288,44 @@ function renderVolumeChart(selectedMonth) {
                     pointRadius: 4,
                     yAxisID: 'yAdherence',
                     spanGaps: true
-                }
+                }] : [])
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            onClick: (event, elements) => {
+                if (elements && elements.length > 0) {
+                    const idx = elements[0].index;
+                    const clickedLabel = charts.volume.data.labels[idx];
+                    if (currentVolumeChartMode === 'daily' && clickedLabel) {
+                        filterDashboardByDate(clickedLabel);
+                    }
+                }
+            },
             plugins: {
                 legend: {
-                    labels: { color: '#374151', font: { family: 'Outfit' } }
+                    labels: { color: '#374151', font: { family: 'Outfit', weight: '600' } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (context.dataset.yAxisID === 'yAdherence') {
+                                return ` ${context.dataset.label}: ${context.raw !== null ? context.raw + '%' : 'Sin registro'}`;
+                            }
+                            return ` ${context.dataset.label}: ${(context.raw || 0).toLocaleString('es-EC', {maximumFractionDigits: 1})} Tn`;
+                        }
+                    }
                 }
             },
             scales: {
                 x: {
                     grid: { color: 'rgba(0,0,0,0.05)' },
-                    ticks: { color: '#4B5563' }
+                    ticks: { color: '#4B5563', maxRotation: 45 }
                 },
                 y: {
                     type: 'linear',
@@ -1160,23 +1339,25 @@ function renderVolumeChart(selectedMonth) {
                     grid: { color: 'rgba(0,0,0,0.05)' },
                     ticks: { color: '#4B5563' }
                 },
-                yAdherence: {
-                    type: 'linear',
-                    position: 'right',
-                    title: {
-                        display: true,
-                        text: 'Adherencia Antimicótico (%)',
-                        color: '#F59E0B',
-                        font: { family: 'Outfit', weight: 'bold' }
-                    },
-                    grid: { drawOnChartArea: false },
-                    ticks: {
-                        color: '#F59E0B',
-                        callback: function(value) { return value + '%'; }
-                    },
-                    suggestedMin: 80,
-                    suggestedMax: 120
-                }
+                ...(currentVolumeChartMode !== 'accum' ? {
+                    yAdherence: {
+                        type: 'linear',
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Adherencia Antimicótico (%)',
+                            color: '#F59E0B',
+                            font: { family: 'Outfit', weight: 'bold' }
+                        },
+                        grid: { drawOnChartArea: false },
+                        ticks: {
+                            color: '#F59E0B',
+                            callback: function(value) { return value + '%'; }
+                        },
+                        suggestedMin: 80,
+                        suggestedMax: 120
+                    }
+                } : {})
             }
         }
     });
@@ -1202,7 +1383,7 @@ function renderStatusChart(selectedMonth) {
 
     const labels = ['Aceptados', 'Rechazados'];
     const counts = [aceptadosCount, rechazadosCount];
-    const colors = ['#10B981', '#EF4444']; // Verde Aceptados, Rojo Rechazados
+    const colors = ['#10B981', '#EF4444'];
 
     const ctx = document.getElementById('statusChart').getContext('2d');
     charts.status = new Chart(ctx, {
@@ -1219,6 +1400,19 @@ function renderStatusChart(selectedMonth) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            onClick: (event, elements) => {
+                if (elements && elements.length > 0) {
+                    const idx = elements[0].index;
+                    const clickedLabel = charts.status.data.labels[idx];
+                    if (clickedLabel === 'Aceptados') {
+                        setDashboardTableFilter('aceptados');
+                        showToast('Filtrando boletos: Solo Aceptados', 'info');
+                    } else if (clickedLabel === 'Rechazados') {
+                        setDashboardTableFilter('rechazados');
+                        showToast('Filtrando boletos: Solo Rechazados', 'info');
+                    }
+                }
+            },
             plugins: {
                 legend: {
                     position: 'bottom',
@@ -1233,7 +1427,7 @@ function renderStatusChart(selectedMonth) {
                             const total = aceptadosCount + rechazadosCount;
                             const val = context.raw || 0;
                             const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                            return ` ${context.label}: ${val} (${pct}%)`;
+                            return ` ${context.label}: ${val} (${pct}%) - Clic para filtrar`;
                         }
                     }
                 }
@@ -1241,6 +1435,385 @@ function renderStatusChart(selectedMonth) {
         }
     });
 }
+
+function renderDashboardDrilldownTable() {
+    const tbody = document.getElementById('dashboard-drilldown-tbody');
+    if (!tbody) return;
+
+    const select = document.getElementById('dashboard-month-filter');
+    const selectedMonth = select ? select.value : 'all';
+
+    if (!appData.aries || appData.aries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:var(--text-muted);">No hay datos de recepción disponibles en la base de datos.</td></tr>`;
+        return;
+    }
+
+    const calidadMap = {};
+    if (appData.calidad) {
+        appData.calidad.forEach(c => {
+            const t = Number(c.TICKETPESO || c.ticketpeso);
+            if (t) calidadMap[t] = c;
+        });
+    }
+
+    const cmSet = new Set();
+    if (appData.contramuestra) {
+        appData.contramuestra.forEach(c => {
+            const t = Number(c['TICKET No.'] || c.ticket_no);
+            if (t) cmSet.add(t);
+        });
+    }
+
+    const baseList = appData.aries.filter(row => {
+        const d = formatDateReadable(row.FECHAENTRA);
+        if (d === '-') return false;
+        if (selectedMonth !== 'all' && !d.startsWith(selectedMonth)) return false;
+        if (dashboardFilter.date && d !== dashboardFilter.date) return false;
+        return true;
+    });
+
+    let countAll = 0;
+    let countCompras = 0;
+    let countDespachos = 0;
+    let countAceptados = 0;
+    let countRechazados = 0;
+
+    baseList.forEach(row => {
+        const isPurchase = Number(row.PESOARTIC) === 1;
+        const ticketNo = Number(row.TICKETPESO);
+        const cal = calidadMap[ticketNo];
+        const isRej = (row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S') || (cal && String(cal.CONFIRMA || '').toUpperCase().startsWith('RECHAZA'));
+
+        countAll++;
+        if (isPurchase) countCompras++;
+        else countDespachos++;
+
+        if (isRej) countRechazados++;
+        else countAceptados++;
+    });
+
+    const elPillAll = document.getElementById('pill-count-all');
+    const elPillCompras = document.getElementById('pill-count-compras');
+    const elPillDespachos = document.getElementById('pill-count-despachos');
+    const elPillAceptados = document.getElementById('pill-count-aceptados');
+    const elPillRechazados = document.getElementById('pill-count-rechazados');
+
+    if (elPillAll) elPillAll.innerText = countAll;
+    if (elPillCompras) elPillCompras.innerText = countCompras;
+    if (elPillDespachos) elPillDespachos.innerText = countDespachos;
+    if (elPillAceptados) elPillAceptados.innerText = countAceptados;
+    if (elPillRechazados) elPillRechazados.innerText = countRechazados;
+
+    const filtered = baseList.filter(row => {
+        const isPurchase = Number(row.PESOARTIC) === 1;
+        const ticketNo = Number(row.TICKETPESO);
+        const cal = calidadMap[ticketNo];
+        const isRej = (row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S') || (cal && String(cal.CONFIRMA || '').toUpperCase().startsWith('RECHAZA'));
+
+        if (dashboardFilter.type === 'compras' && !isPurchase) return false;
+        if (dashboardFilter.type === 'despachos' && isPurchase) return false;
+        if (dashboardFilter.type === 'rechazados' && !isRej) return false;
+        if (dashboardFilter.type === 'aceptados' && isRej) return false;
+
+        if (dashboardFilter.search) {
+            const q = dashboardFilter.search;
+            const strTicket = String(row.TICKETPESO || '');
+            const strPlaca = String(row.PLACA || '').toLowerCase();
+            const strProv = String(row.NOMBREP || row.NOMBREPROV || row.TITULOA || '').toLowerCase();
+            const strChof = String(row.NOMCHOF || '').toLowerCase();
+            const strProd = String(row.DESCRIPCIO || '').toLowerCase();
+            if (!strTicket.includes(q) && !strPlaca.includes(q) && !strProv.includes(q) && !strChof.includes(q) && !strProd.includes(q)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    const tagEl = document.getElementById('dashboard-active-filter-tag');
+    const tagText = document.getElementById('dashboard-active-filter-text');
+    if (tagEl && tagText) {
+        const parts = [];
+        if (dashboardFilter.date) parts.push(`Fecha: ${dashboardFilter.date}`);
+        if (dashboardFilter.type !== 'all') {
+            const names = { compras: 'Solo Compras', despachos: 'Solo Despachos', aceptados: 'Solo Aceptados', rechazados: 'Solo Rechazados' };
+            parts.push(names[dashboardFilter.type] || dashboardFilter.type);
+        }
+        if (dashboardFilter.search) parts.push(`Búsqueda: "${dashboardFilter.search}"`);
+
+        if (parts.length > 0) {
+            tagText.innerText = parts.join(' | ');
+            tagEl.style.display = 'inline-flex';
+        } else {
+            tagEl.style.display = 'none';
+        }
+    }
+
+    const totalRecords = filtered.length;
+    const totalPages = Math.ceil(totalRecords / dashboardFilter.pageSize) || 1;
+    if (dashboardFilter.page > totalPages) dashboardFilter.page = totalPages;
+    if (dashboardFilter.page < 1) dashboardFilter.page = 1;
+
+    const startIndex = (dashboardFilter.page - 1) * dashboardFilter.pageSize;
+    const endIndex = Math.min(startIndex + dashboardFilter.pageSize, totalRecords);
+    const paginatedItems = filtered.slice(startIndex, endIndex);
+
+    if (paginatedItems.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="font-size:1.5rem; margin-bottom:8px; display:block;"></i>No se encontraron boletos que coincidan con los filtros aplicados.</td></tr>`;
+    } else {
+        tbody.innerHTML = paginatedItems.map(row => {
+            const ticketNo = Number(row.TICKETPESO);
+            const isPurchase = Number(row.PESOARTIC) === 1;
+            const dateStr = formatDateReadable(row.FECHAENTRA);
+            const timeStr = row.HORAENTRA ? String(row.HORAENTRA).substring(0, 5) : '';
+            const placa = row.PLACA || '-';
+            const prov = row.NOMBREP || row.NOMBREPROV || row.TITULOA || 'Proveedor Balzar';
+            const chof = row.NOMCHOF || '';
+            const kilos = Number(row.PESOKILOS || 0);
+            const tons = (kilos / 1000).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const hasCm = cmSet.has(ticketNo);
+
+            const cal = calidadMap[ticketNo];
+            const isRej = (row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S') || (cal && String(cal.CONFIRMA || '').toUpperCase().startsWith('RECHAZA'));
+
+            let humDisplay = '-';
+            if (cal && cal.PROM_HUMEDAD !== undefined && cal.PROM_HUMEDAD !== null && cal.PROM_HUMEDAD !== '') {
+                humDisplay = `${Number(cal.PROM_HUMEDAD).toFixed(1)}%`;
+                if (cal.IMP) humDisplay += ` | ${Number(cal.IMP).toFixed(1)}% Imp`;
+            }
+
+            const typePill = isPurchase 
+                ? `<span class="badge-type compra"><i class="fa-solid fa-cart-shopping"></i> Compra</span>`
+                : `<span class="badge-type despacho"><i class="fa-solid fa-truck"></i> Despacho</span>`;
+
+            const statusPill = isRej
+                ? `<span class="badge-status-pill rejected"><i class="fa-solid fa-xmark"></i> Rechazado</span>`
+                : `<span class="badge-status-pill accepted"><i class="fa-solid fa-check"></i> Aceptado</span>`;
+
+            const cmBadge = hasCm 
+                ? `<span title="Tiene contramuestra registrada" style="display:inline-block; font-size:0.65rem; background:#8B5CF6; color:white; padding:1px 5px; border-radius:3px; margin-left:4px; font-weight:700;">CM</span>` 
+                : '';
+
+            return `
+                <tr style="border-bottom: 1px solid var(--border-color); transition: background 0.15s;" onmouseover="this.style.background='rgba(0,0,0,0.015)'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 10px 14px; font-weight: 700; color: var(--text-main);">
+                        #${ticketNo}${cmBadge}
+                    </td>
+                    <td style="padding: 10px 14px; color: var(--text-muted); font-size: 0.8rem; white-space: nowrap;">
+                        <i class="fa-regular fa-calendar" style="margin-right:4px;"></i>${dateStr} <span style="font-size:0.75rem; opacity:0.8;">${timeStr}</span>
+                    </td>
+                    <td style="padding: 10px 14px;">${typePill}</td>
+                    <td style="padding: 10px 14px; font-weight: 600; color: var(--text-main);"><i class="fa-solid fa-truck-moving" style="margin-right:4px; color:var(--text-muted);"></i>${placa}</td>
+                    <td style="padding: 10px 14px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <div style="font-weight: 600; color: var(--text-main);">${prov}</div>
+                        ${chof ? `<div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fa-solid fa-user" style="font-size:0.7rem; margin-right:3px;"></i>${chof}</div>` : ''}
+                    </td>
+                    <td style="padding: 10px 14px; text-align: right; font-weight: 700; color: var(--text-main);">
+                        ${tons} <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">Tn</span>
+                    </td>
+                    <td style="padding: 10px 14px; text-align: center; font-size: 0.82rem; color: var(--text-main);">
+                        ${humDisplay}
+                    </td>
+                    <td style="padding: 10px 14px; text-align: center;">${statusPill}</td>
+                    <td style="padding: 10px 14px; text-align: center;">
+                        <button class="btn-detail-sm" onclick="openDashboardTicketModal(${ticketNo})">
+                            <i class="fa-solid fa-eye"></i> Detalle
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    const infoEl = document.getElementById('dashboard-table-pagination-info');
+    if (infoEl) {
+        if (totalRecords === 0) infoEl.innerText = 'Mostrando 0 de 0 boletos';
+        else infoEl.innerText = `Mostrando ${startIndex + 1}-${endIndex} de ${totalRecords} boletos`;
+    }
+
+    const ctrlEl = document.getElementById('dashboard-table-pagination-controls');
+    if (ctrlEl) {
+        if (totalPages <= 1) {
+            ctrlEl.innerHTML = '';
+        } else {
+            let btns = '';
+            btns += `<button class="pagination-btn" ${dashboardFilter.page === 1 ? 'disabled' : ''} onclick="changeDashboardPage(${dashboardFilter.page - 1})"><i class="fa-solid fa-chevron-left"></i></button>`;
+            
+            const startP = Math.max(1, dashboardFilter.page - 2);
+            const endP = Math.min(totalPages, startP + 4);
+
+            for (let p = startP; p <= endP; p++) {
+                btns += `<button class="pagination-btn ${p === dashboardFilter.page ? 'active' : ''}" onclick="changeDashboardPage(${p})">${p}</button>`;
+            }
+
+            btns += `<button class="pagination-btn" ${dashboardFilter.page === totalPages ? 'disabled' : ''} onclick="changeDashboardPage(${dashboardFilter.page + 1})"><i class="fa-solid fa-chevron-right"></i></button>`;
+            ctrlEl.innerHTML = btns;
+        }
+    }
+}
+
+function changeDashboardPage(newPage) {
+    dashboardFilter.page = newPage;
+    renderDashboardDrilldownTable();
+}
+
+function openDashboardTicketModal(ticketNo) {
+    const modal = document.getElementById('dashboard-ticket-modal');
+    if (!modal) return;
+
+    const ariesRow = appData.aries ? appData.aries.find(r => Number(r.TICKETPESO) === Number(ticketNo)) : null;
+    const calRow = appData.calidad ? appData.calidad.find(c => Number(c.TICKETPESO) === Number(ticketNo)) : null;
+    const cmRow = appData.contramuestra ? appData.contramuestra.find(c => Number(c['TICKET No.'] || c.ticket_no) === Number(ticketNo)) : null;
+
+    const elNum = document.getElementById('dtm-ticket-num');
+    if (elNum) elNum.innerText = ticketNo;
+
+    const body = document.getElementById('dtm-body');
+    if (!body) return;
+
+    const dateEntra = ariesRow ? formatDateReadable(ariesRow.FECHAENTRA) : '-';
+    const horaEntra = ariesRow && ariesRow.HORAENTRA ? String(ariesRow.HORAENTRA).substring(0, 8) : '-';
+    const dateSale = ariesRow && ariesRow.FECHASALE ? formatDateReadable(ariesRow.FECHASALE) : '-';
+    const horaSale = ariesRow && ariesRow.HORASALE ? String(ariesRow.HORASALE).substring(0, 8) : '-';
+
+    const placa = ariesRow ? (ariesRow.PLACA || '-') : '-';
+    const prov = ariesRow ? (ariesRow.NOMBREP || ariesRow.NOMBREPROV || ariesRow.TITULOA || 'No especificado') : '-';
+    const chof = ariesRow ? (ariesRow.NOMCHOF || 'No especificado') : '-';
+    const prod = ariesRow ? (ariesRow.DESCRIPCIO || 'MAIZ AMARILLO') : 'MAIZ';
+
+    const pBruto = ariesRow && ariesRow.PESOBRUTO !== undefined ? Number(ariesRow.PESOBRUTO).toLocaleString('es-EC') + ' kg' : '-';
+    const pTara = ariesRow && ariesRow.TARA !== undefined ? Number(ariesRow.TARA).toLocaleString('es-EC') + ' kg' : '-';
+    const pKilos = ariesRow && ariesRow.PESOKILOS !== undefined ? Number(ariesRow.PESOKILOS).toLocaleString('es-EC') + ' kg' : '-';
+    const pTn = ariesRow && ariesRow.PESOKILOS !== undefined ? (Number(ariesRow.PESOKILOS)/1000).toFixed(2) + ' Tn' : '-';
+
+    const isPurchase = ariesRow ? Number(ariesRow.PESOARTIC) === 1 : true;
+    const isRej = (ariesRow && ariesRow.RECHAZA_PS && String(ariesRow.RECHAZA_PS).trim().toUpperCase() === 'S') || (calRow && String(calRow.CONFIRMA || '').toUpperCase().startsWith('RECHAZA'));
+
+    body.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid var(--border-color);">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="badge-type ${isPurchase ? 'compra' : 'despacho'}" style="font-size:0.8rem; padding:4px 10px;">
+                    <i class="fa-solid ${isPurchase ? 'fa-cart-shopping' : 'fa-truck'}"></i> ${isPurchase ? 'Compra de Maíz' : 'Transferencia / Despacho'}
+                </span>
+                <span class="badge-status-pill ${isRej ? 'rejected' : 'accepted'}" style="font-size:0.8rem; padding:4px 10px;">
+                    <i class="fa-solid ${isRej ? 'fa-xmark' : 'fa-check'}"></i> ${isRej ? 'Rechazado' : 'Aceptado'}
+                </span>
+            </div>
+            <div style="font-weight:700; color:#0284c7; font-size:1.1rem;">
+                <i class="fa-solid fa-weight-hanging"></i> ${pTn}
+            </div>
+        </div>
+
+        <div style="margin-bottom:18px;">
+            <h4 style="margin:0 0 10px 0; font-size:0.88rem; color:var(--text-muted); text-transform:uppercase; font-weight:700; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-truck-ramp-box" style="color:#E2001A;"></i> Datos de Pesaje y Vehículo (Balanza)
+            </h4>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid var(--border-color); font-size:0.82rem;">
+                <div><span style="color:var(--text-muted); display:block;">Placa:</span><strong style="color:var(--text-main); font-size:0.95rem;">${placa}</strong></div>
+                <div><span style="color:var(--text-muted); display:block;">Entrada:</span><strong style="color:var(--text-main);">${dateEntra} ${horaEntra}</strong></div>
+                <div><span style="color:var(--text-muted); display:block;">Salida:</span><strong style="color:var(--text-main);">${dateSale} ${horaSale}</strong></div>
+                <div><span style="color:var(--text-muted); display:block;">Peso Bruto:</span><strong style="color:var(--text-main);">${pBruto}</strong></div>
+                <div><span style="color:var(--text-muted); display:block;">Tara:</span><strong style="color:var(--text-main);">${pTara}</strong></div>
+                <div><span style="color:var(--text-muted); display:block;">Peso Neto:</span><strong style="color:#10B981; font-size:0.95rem;">${pKilos}</strong></div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px; font-size:0.82rem; background:#f8fafc; padding:10px 12px; border-radius:8px; border:1px solid var(--border-color);">
+                <div><span style="color:var(--text-muted); display:block;">Proveedor / Origen:</span><strong style="color:var(--text-main);">${prov}</strong></div>
+                <div><span style="color:var(--text-muted); display:block;">Chofer:</span><strong style="color:var(--text-main);">${chof}</strong></div>
+            </div>
+        </div>
+
+        <div style="margin-bottom:18px;">
+            <h4 style="margin:0 0 10px 0; font-size:0.88rem; color:var(--text-muted); text-transform:uppercase; font-weight:700; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-flask-vial" style="color:#0284c7;"></i> Análisis de Calidad (Laboratorio)
+            </h4>
+            ${calRow ? `
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(100px, 1fr)); gap:8px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% HUMEDAD</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:#0284c7;">${calRow.PROM_HUMEDAD ? Number(calRow.PROM_HUMEDAD).toFixed(1) + '%' : '-'}</div>
+                    </div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% IMPUREZAS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.IMP ? Number(calRow.IMP).toFixed(1) + '%' : '-'}</div>
+                    </div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% PARTIDOS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.PARTIDOS ? Number(calRow.PARTIDOS).toFixed(1) + '%' : '-'}</div>
+                    </div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% PODRIDOS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.PODRIDOS ? Number(calRow.PODRIDOS).toFixed(1) + '%' : '-'}</div>
+                    </div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% HONGOS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.HONGOS ? Number(calRow.HONGOS).toFixed(1) + '%' : '-'}</div>
+                    </div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">INSECTOS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.INSECTOS || 0}</div>
+                    </div>
+                </div>
+            ` : `
+                <div style="background:#fffbeb; border:1px solid #fef3c7; color:#92400e; padding:12px; border-radius:8px; font-size:0.82rem;">
+                    <i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> No se ha cargado el registro de calidad correspondiente a este boleto en la tabla <strong>calidad</strong>.
+                </div>
+            `}
+        </div>
+
+        <div>
+            <h4 style="margin:0 0 10px 0; font-size:0.88rem; color:var(--text-muted); text-transform:uppercase; font-weight:700; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-flask" style="color:#8B5CF6;"></i> Contramuestra (Asistente de Proceso)
+            </h4>
+            ${cmRow ? `
+                <div style="background:#f5f3ff; border:1px solid #ddd6fe; padding:12px; border-radius:8px; font-size:0.82rem; color:#4c1d95;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <strong><i class="fa-solid fa-circle-check" style="color:#8B5CF6;"></i> Contramuestra Realizada</strong>
+                        <span>Fecha: ${formatDateReadable(cmRow.FECHA || cmRow.fecha)}</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; text-align:center;">
+                        <div style="background:white; padding:6px; border-radius:4px; border:1px solid #e9d5ff;">
+                            <span style="font-size:0.7rem; color:#6b21a8;">Hum. Asistente:</span>
+                            <strong style="display:block; font-size:0.95rem;">${cmRow['CALID_PRO. %HUMEDAD'] ? Number(cmRow['CALID_PRO. %HUMEDAD']).toFixed(1) + '%' : '-'}</strong>
+                        </div>
+                        <div style="background:white; padding:6px; border-radius:4px; border:1px solid #e9d5ff;">
+                            <span style="font-size:0.7rem; color:#6b21a8;">Imp. Asistente:</span>
+                            <strong style="display:block; font-size:0.95rem;">${cmRow['CALID_%IMP'] ? Number(cmRow['CALID_%IMP']).toFixed(1) + '%' : '-'}</strong>
+                        </div>
+                        <div style="background:white; padding:6px; border-radius:4px; border:1px solid #e9d5ff;">
+                            <span style="font-size:0.7rem; color:#6b21a8;">Podridos:</span>
+                            <strong style="display:block; font-size:0.95rem;">${cmRow['CALID_PODRIDOS'] ? Number(cmRow['CALID_PODRIDOS']).toFixed(1) + '%' : '-'}</strong>
+                        </div>
+                    </div>
+                </div>
+            ` : `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border:1px solid var(--border-color); padding:10px 14px; border-radius:8px; font-size:0.82rem;">
+                    <span style="color:var(--text-muted);"><i class="fa-regular fa-clock" style="margin-right:6px;"></i> Este boleto no tiene contramuestra registrada.</span>
+                    <button class="btn-detail-sm" style="background:#8B5CF6; color:white; border:none;" onclick="closeDashboardTicketModal(); switchTab('contramuestra');">
+                        <i class="fa-solid fa-plus"></i> Ir a Registrar
+                    </button>
+                </div>
+            `}
+        </div>
+    `;
+
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
+}
+
+function closeDashboardTicketModal() {
+    const modal = document.getElementById('dashboard-ticket-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 250);
+}
+
+function closeDashboardTicketModalOnOuterClick(event) {
+    if (event.target.id === 'dashboard-ticket-modal') {
+        closeDashboardTicketModal();
+    }
+}
+
 
 // CONTRAMUESTRA REGISTRATION MODULE
 function initializeContramuestraControls() {
