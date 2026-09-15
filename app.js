@@ -504,6 +504,11 @@ function showLandingScreen() {
     landing.classList.remove('hidden');
 }
 
+function navigateToSync(mode = 'recepciones') {
+    showAppView('sync');
+    setSyncMode(mode || 'recepciones');
+}
+
 function hideUploadScreen() {
     document.getElementById('file-upload-screen').classList.add('hidden');
     pendingTab = null;
@@ -515,12 +520,14 @@ function switchTab(tab) {
     document.querySelectorAll('.view-section').forEach(sec => {
         sec.classList.remove('active');
     });
-    document.getElementById(`${tab}-view`).classList.add('active');
+    const targetView = document.getElementById(`${tab}-view`);
+    if (targetView) targetView.classList.add('active');
     
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
     });
-    document.getElementById(`nav-btn-${tab}`).classList.add('active');
+    const targetNav = document.getElementById(`nav-btn-${tab}`);
+    if (targetNav) targetNav.classList.add('active');
     
     if (tab === 'dashboard') {
         setTimeout(() => {
@@ -540,6 +547,11 @@ function switchTab(tab) {
         setTimeout(() => {
             if (charts.fotoTrend) charts.fotoTrend.resize();
         }, 100);
+    } else if (tab === 'sync') {
+        const elRecep = document.getElementById('sync-stat-recepciones');
+        const elCalid = document.getElementById('sync-stat-calidad');
+        if (elRecep) elRecep.innerText = `${(appData.aries || []).length} boletos`;
+        if (elCalid) elCalid.innerText = `${(appData.calidad || []).length} análisis`;
     }
 }
 
@@ -3752,6 +3764,8 @@ function openExcelSyncModal(mode = 'recepciones') {
     if (!modal) return;
 
     modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
+
     const previewBox = document.getElementById('sync-preview-box');
     if (previewBox) previewBox.style.display = 'none';
     const pContainer = document.getElementById('sync-progress-bar-container');
@@ -3766,11 +3780,24 @@ function openExcelSyncModal(mode = 'recepciones') {
     setSyncMode(mode || 'recepciones');
 }
 
+function closeExcelSyncModal() {
+    const modal = document.getElementById('excel-sync-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    setTimeout(() => { modal.style.display = 'none'; }, 250);
+}
+
+function closeExcelSyncModalOnOuterClick(e) {
+    if (e.target && e.target.id === 'excel-sync-modal') {
+        closeExcelSyncModal();
+    }
+}
+
 function setSyncMode(mode) {
     currentSyncMode = mode || 'recepciones';
     const isRecep = (currentSyncMode === 'recepciones');
 
-    // Actualizar Encabezado del Modal
+    // 1. ACTUALIZAR ELEMENTOS DEL MODAL (POPUP)
     const title = document.getElementById('sync-modal-title');
     const icon = document.getElementById('sync-modal-icon');
     const titleText = document.getElementById('sync-modal-title-text');
@@ -3778,7 +3805,6 @@ function setSyncMode(mode) {
     if (icon) icon.className = isRecep ? 'fa-solid fa-truck' : 'fa-solid fa-vial';
     if (titleText) titleText.innerText = isRecep ? 'Actualizar Tabla: Recepciones' : 'Actualizar Tabla: Calidad';
 
-    // Actualizar Botones de Pestaña de Modo
     const btnRecep = document.getElementById('btn-mode-recep');
     const btnCalid = document.getElementById('btn-mode-calid');
     if (btnRecep) {
@@ -3790,7 +3816,6 @@ function setSyncMode(mode) {
         btnCalid.style.color = isRecep ? '#64748b' : '#ffffff';
     }
 
-    // Actualizar Texto Explicativo
     const desc = document.getElementById('sync-modal-desc');
     if (desc) {
         desc.style.borderLeft = isRecep ? '4px solid #EF4444' : '4px solid #0284c7';
@@ -3799,7 +3824,6 @@ function setSyncMode(mode) {
             : 'Suba el archivo de <strong>Calidad / Laboratorio</strong>. El sistema extraerá los análisis y los guardará directamente en la tabla <strong style="color: #0284c7;">calidad</strong> de Supabase.';
     }
 
-    // Actualizar Zona DropZone
     const dropZone = document.getElementById('sync-drop-zone');
     const dropIcon = document.getElementById('sync-drop-icon');
     const dropText = document.getElementById('sync-drop-text');
@@ -3810,30 +3834,76 @@ function setSyncMode(mode) {
     if (dropIcon) dropIcon.style.color = isRecep ? '#EF4444' : '#0284c7';
     if (dropText) dropText.innerText = isRecep ? 'Arrastre aquí el archivo Excel de Recepciones' : 'Arrastre aquí el archivo Excel de Calidad';
 
-    // Actualizar Botón de Ejecutar
     const btnSync = document.getElementById('btn-execute-sync');
     const btnSyncText = document.getElementById('btn-execute-sync-text');
     if (btnSync) btnSync.style.background = isRecep ? '#EF4444' : '#0284c7';
     if (btnSyncText) btnSyncText.innerText = isRecep ? 'Guardar en Tabla Recepciones' : 'Guardar en Tabla Calidad';
 
-    // Barra de Progreso
     const pFill = document.getElementById('sync-progress-fill');
     if (pFill) pFill.style.background = isRecep ? '#EF4444' : '#0284c7';
+
+    // 2. ACTUALIZAR ELEMENTOS DE LA PESTAÑA DEDICADA (#sync-view)
+    const tabBtnRecep = document.getElementById('sync-tab-mode-recep');
+    const tabBtnCalid = document.getElementById('sync-tab-mode-calid');
+    if (tabBtnRecep) {
+        tabBtnRecep.style.background = isRecep ? '#EF4444' : 'transparent';
+        tabBtnRecep.style.color = isRecep ? '#ffffff' : '#64748B';
+        tabBtnRecep.style.boxShadow = isRecep ? '0 2px 8px rgba(239, 68, 68, 0.3)' : 'none';
+    }
+    if (tabBtnCalid) {
+        tabBtnCalid.style.background = isRecep ? 'transparent' : '#0284c7';
+        tabBtnCalid.style.color = isRecep ? '#64748B' : '#ffffff';
+        tabBtnCalid.style.boxShadow = isRecep ? 'none' : '0 2px 8px rgba(2, 132, 199, 0.3)';
+    }
+
+    const tabTitle = document.getElementById('sync-tab-title');
+    const tabIcon = document.getElementById('sync-tab-icon');
+    const tabTitleText = document.getElementById('sync-tab-title-text');
+    const tabSubtitle = document.getElementById('sync-tab-subtitle');
+    const tabBadge = document.getElementById('sync-tab-badge');
+    if (tabTitle) tabTitle.style.color = isRecep ? '#EF4444' : '#0284c7';
+    if (tabIcon) tabIcon.className = isRecep ? 'fa-solid fa-truck' : 'fa-solid fa-vial';
+    if (tabTitleText) tabTitleText.innerText = isRecep ? 'Carga de Boletos de Recepciones (Aries)' : 'Carga de Análisis de Calidad (Laboratorio)';
+    if (tabSubtitle) tabSubtitle.innerHTML = isRecep ? 'Afecta exclusivamente a la tabla <strong>recepciones</strong> de Supabase.' : 'Afecta exclusivamente a la tabla <strong>calidad</strong> de Supabase.';
+    if (tabBadge) {
+        tabBadge.style.background = isRecep ? 'rgba(239, 68, 68, 0.1)' : 'rgba(2, 132, 199, 0.1)';
+        tabBadge.style.color = isRecep ? '#EF4444' : '#0284c7';
+        tabBadge.style.borderColor = isRecep ? 'rgba(239, 68, 68, 0.25)' : 'rgba(2, 132, 199, 0.25)';
+        tabBadge.innerText = isRecep ? 'Tabla: recepciones' : 'Tabla: calidad';
+    }
+
+    const tabDesc = document.getElementById('sync-tab-desc');
+    if (tabDesc) {
+        tabDesc.style.borderLeft = isRecep ? '4px solid #EF4444' : '4px solid #0284c7';
+        tabDesc.innerHTML = isRecep
+            ? 'Suba el archivo de <strong>Recepciones / Aries</strong> (Hojas: <em>Ingreso Manta, Ingreso Balzar o Aries</em>). El sistema extraerá automáticamente los tickets de báscula, fechas, placas, pesos brutos, taras y rechazos.'
+            : 'Suba el archivo de <strong>Calidad / Laboratorio</strong> (Hojas: <em>Calidad o Base de Calidad</em>). El sistema extraerá automáticamente los análisis, humedades, impurezas, partidos, insectos y dictamen.';
+    }
+
+    const tabDropZone = document.getElementById('sync-tab-drop-zone');
+    const tabDropIcon = document.getElementById('sync-tab-drop-icon');
+    const tabDropText = document.getElementById('sync-tab-drop-text');
+    if (tabDropZone) {
+        tabDropZone.style.border = isRecep ? '2px dashed #EF4444' : '2px dashed #0284c7';
+        tabDropZone.style.background = isRecep ? 'rgba(239, 68, 68, 0.02)' : 'rgba(2, 132, 199, 0.02)';
+    }
+    if (tabDropIcon) tabDropIcon.style.color = isRecep ? '#EF4444' : '#0284c7';
+    if (tabDropText) tabDropText.innerText = isRecep ? 'Arrastre aquí el archivo Excel de Recepciones' : 'Arrastre aquí el archivo Excel de Calidad';
+
+    const tabBtnSync = document.getElementById('btn-tab-execute-sync');
+    const tabBtnSyncText = document.getElementById('btn-tab-execute-sync-text');
+    if (tabBtnSync) {
+        tabBtnSync.style.background = isRecep ? '#EF4444' : '#0284c7';
+        tabBtnSync.style.boxShadow = isRecep ? '0 4px 14px rgba(239, 68, 68, 0.35)' : '0 4px 14px rgba(2, 132, 199, 0.35)';
+    }
+    if (tabBtnSyncText) tabBtnSyncText.innerText = isRecep ? 'Guardar en Tabla Recepciones' : 'Guardar en Tabla Calidad';
+
+    const tabPFill = document.getElementById('sync-tab-progress-fill');
+    if (tabPFill) tabPFill.style.background = isRecep ? '#EF4444' : '#0284c7';
 
     // Si ya teníamos un archivo cargado en memoria, reprocesarlo con el nuevo modo seleccionado
     if (lastLoadedSyncWorkbook) {
         processExcelSyncWorkbook(lastLoadedSyncWorkbook.workbook, lastLoadedSyncWorkbook.fileName);
-    }
-}
-
-function closeExcelSyncModal() {
-    const modal = document.getElementById('excel-sync-modal');
-    if (modal) modal.style.display = 'none';
-}
-
-function closeExcelSyncModalOnOuterClick(e) {
-    if (e.target && e.target.id === 'excel-sync-modal') {
-        closeExcelSyncModal();
     }
 }
 
@@ -3919,6 +3989,7 @@ function processExcelSyncWorkbook(workbook, fileName) {
             fileName: fileName
         };
 
+        // Actualizar Modal
         const fnEl = document.getElementById('sync-filename');
         if (fnEl) fnEl.innerText = fileName;
         const lblEl = document.getElementById('sync-preview-label');
@@ -3930,8 +4001,27 @@ function processExcelSyncWorkbook(workbook, fileName) {
         }
         const statusEl = document.getElementById('sync-status-msg');
         if (statusEl) statusEl.innerHTML = 'Listo para guardar en la tabla <strong style="color: #EF4444;">recepciones</strong> de Supabase.';
-        document.getElementById('sync-preview-box').style.display = 'flex';
-        document.getElementById('btn-execute-sync').style.display = 'inline-block';
+        const pBox = document.getElementById('sync-preview-box');
+        if (pBox) pBox.style.display = 'flex';
+        const btnEx = document.getElementById('btn-execute-sync');
+        if (btnEx) btnEx.style.display = 'inline-block';
+
+        // Actualizar Pestaña dedicada
+        const tabFnEl = document.getElementById('sync-tab-filename');
+        if (tabFnEl) tabFnEl.innerText = fileName;
+        const tabLblEl = document.getElementById('sync-tab-preview-label');
+        if (tabLblEl) tabLblEl.innerText = 'Boletos de Recepción detectados:';
+        const tabCountEl = document.getElementById('sync-tab-preview-count');
+        if (tabCountEl) {
+            tabCountEl.innerText = `${recepcionesPayload.length} boletos`;
+            tabCountEl.style.color = '#EF4444';
+        }
+        const tabStatusEl = document.getElementById('sync-tab-status-msg');
+        if (tabStatusEl) tabStatusEl.innerHTML = 'Listo para guardar en la tabla <strong style="color: #EF4444;">recepciones</strong> de Supabase.';
+        const tabPBox = document.getElementById('sync-tab-preview-box');
+        if (tabPBox) tabPBox.style.display = 'flex';
+        const tabBtnEx = document.getElementById('btn-tab-execute-sync');
+        if (tabBtnEx) tabBtnEx.style.display = 'inline-block';
 
     } else {
         // Buscar hoja de calidad
@@ -3995,6 +4085,7 @@ function processExcelSyncWorkbook(workbook, fileName) {
             fileName: fileName
         };
 
+        // Actualizar Modal
         const fnEl = document.getElementById('sync-filename');
         if (fnEl) fnEl.innerText = fileName;
         const lblEl = document.getElementById('sync-preview-label');
@@ -4006,8 +4097,27 @@ function processExcelSyncWorkbook(workbook, fileName) {
         }
         const statusEl = document.getElementById('sync-status-msg');
         if (statusEl) statusEl.innerHTML = 'Listo para guardar en la tabla <strong style="color: #0284c7;">calidad</strong> de Supabase.';
-        document.getElementById('sync-preview-box').style.display = 'flex';
-        document.getElementById('btn-execute-sync').style.display = 'inline-block';
+        const pBox = document.getElementById('sync-preview-box');
+        if (pBox) pBox.style.display = 'flex';
+        const btnEx = document.getElementById('btn-execute-sync');
+        if (btnEx) btnEx.style.display = 'inline-block';
+
+        // Actualizar Pestaña dedicada
+        const tabFnEl = document.getElementById('sync-tab-filename');
+        if (tabFnEl) tabFnEl.innerText = fileName;
+        const tabLblEl = document.getElementById('sync-tab-preview-label');
+        if (tabLblEl) tabLblEl.innerText = 'Análisis de Calidad detectados:';
+        const tabCountEl = document.getElementById('sync-tab-preview-count');
+        if (tabCountEl) {
+            tabCountEl.innerText = `${calidadPayload.length} análisis`;
+            tabCountEl.style.color = '#0284c7';
+        }
+        const tabStatusEl = document.getElementById('sync-tab-status-msg');
+        if (tabStatusEl) tabStatusEl.innerHTML = 'Listo para guardar en la tabla <strong style="color: #0284c7;">calidad</strong> de Supabase.';
+        const tabPBox = document.getElementById('sync-tab-preview-box');
+        if (tabPBox) tabPBox.style.display = 'flex';
+        const tabBtnEx = document.getElementById('btn-tab-execute-sync');
+        if (tabBtnEx) tabBtnEx.style.display = 'inline-block';
     }
 }
 
@@ -4023,25 +4133,43 @@ async function executeExcelSyncToSupabase() {
     const tableName = isRecep ? 'recepciones' : 'calidad';
     const items = excelSyncParsedData.data;
 
-    const btn = document.getElementById('btn-execute-sync');
-    if (btn) btn.disabled = true;
+    // Deshabilitar botones de ejecutar
+    const btnModal = document.getElementById('btn-execute-sync');
+    const btnTab = document.getElementById('btn-tab-execute-sync');
+    if (btnModal) btnModal.disabled = true;
+    if (btnTab) btnTab.disabled = true;
 
+    // Elementos de Progreso Modal
     const pContainer = document.getElementById('sync-progress-bar-container');
     const pFill = document.getElementById('sync-progress-fill');
     const pPct = document.getElementById('sync-progress-pct');
     const pLabel = document.getElementById('sync-progress-label');
 
-    pContainer.style.display = 'flex';
-    pFill.style.width = '10%';
-    pFill.style.background = isRecep ? '#EF4444' : '#0284c7';
-    pPct.innerText = '10%';
-    pLabel.innerText = `Preparando ${items.length} registros para tabla ${tableName}...`;
+    // Elementos de Progreso Pestaña
+    const tabPContainer = document.getElementById('sync-tab-progress-bar-container');
+    const tabPFill = document.getElementById('sync-tab-progress-fill');
+    const tabPPct = document.getElementById('sync-tab-progress-pct');
+    const tabPLabel = document.getElementById('sync-tab-progress-label');
+
+    if (pContainer) pContainer.style.display = 'flex';
+    if (tabPContainer) tabPContainer.style.display = 'flex';
+
+    const color = isRecep ? '#EF4444' : '#0284c7';
+    if (pFill) { pFill.style.width = '10%'; pFill.style.background = color; }
+    if (tabPFill) { tabPFill.style.width = '10%'; tabPFill.style.background = color; }
+    if (pPct) pPct.innerText = '10%';
+    if (tabPPct) tabPPct.innerText = '10%';
+    const prepMsg = `Preparando ${items.length} registros para tabla ${tableName}...`;
+    if (pLabel) pLabel.innerText = prepMsg;
+    if (tabPLabel) tabPLabel.innerText = prepMsg;
 
     try {
         const CHUNK_SIZE = 100;
         for (let i = 0; i < items.length; i += CHUNK_SIZE) {
             const chunk = items.slice(i, i + CHUNK_SIZE);
-            pLabel.innerText = `Guardando en ${tableName} (${Math.min(i + chunk.length, items.length)} de ${items.length})...`;
+            const statusMsg = `Guardando en ${tableName} (${Math.min(i + chunk.length, items.length)} de ${items.length})...`;
+            if (pLabel) pLabel.innerText = statusMsg;
+            if (tabPLabel) tabPLabel.innerText = statusMsg;
 
             const res = await fetch(endpoint, {
                 method: 'POST',
@@ -4058,13 +4186,19 @@ async function executeExcelSyncToSupabase() {
             }
 
             const progress = 10 + Math.round(((i + chunk.length) / items.length) * 88);
-            pFill.style.width = `${progress}%`;
-            pPct.innerText = `${progress}%`;
+            if (pFill) pFill.style.width = `${progress}%`;
+            if (tabPFill) tabPFill.style.width = `${progress}%`;
+            if (pPct) pPct.innerText = `${progress}%`;
+            if (tabPPct) tabPPct.innerText = `${progress}%`;
         }
 
-        pFill.style.width = '100%';
-        pPct.innerText = '100%';
-        pLabel.innerText = '¡Sincronización completada exitosamente!';
+        if (pFill) pFill.style.width = '100%';
+        if (tabPFill) tabPFill.style.width = '100%';
+        if (pPct) pPct.innerText = '100%';
+        if (tabPPct) tabPPct.innerText = '100%';
+        const completeMsg = '¡Sincronización completada exitosamente!';
+        if (pLabel) pLabel.innerText = completeMsg;
+        if (tabPLabel) tabPLabel.innerText = completeMsg;
 
         const successMsg = isRecep 
             ? `¡Se sincronizaron con éxito ${items.length} recepciones en Supabase!`
@@ -4078,9 +4212,13 @@ async function executeExcelSyncToSupabase() {
 
     } catch(err) {
         console.error("Error en sincronización con Supabase:", err);
-        pLabel.innerText = 'Error al sincronizar: ' + err.message;
-        pFill.style.background = '#DC2626';
-        showToast('Error al sincronizar: ' + err.message, 'danger');
-        if (btn) btn.disabled = false;
+        const errMsg = 'Error al sincronizar: ' + err.message;
+        if (pLabel) pLabel.innerText = errMsg;
+        if (tabPLabel) tabPLabel.innerText = errMsg;
+        if (pFill) pFill.style.background = '#DC2626';
+        if (tabPFill) tabPFill.style.background = '#DC2626';
+        showToast(errMsg, 'danger');
+        if (btnModal) btnModal.disabled = false;
+        if (btnTab) btnTab.disabled = false;
     }
 }
