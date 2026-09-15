@@ -1436,6 +1436,99 @@ function renderStatusChart(selectedMonth) {
     });
 }
 
+// Helper para obtener la Humedad del Boleto (priorizando Humedad Invt de calidad)
+function getTicketHumidity(cal, aries) {
+    if (cal) {
+        // Prioridad 1: HUM_INVENT / hum_invent (requerimiento explícito: Humedad Invt)
+        if (cal.HUM_INVENT !== undefined && cal.HUM_INVENT !== null && cal.HUM_INVENT !== '') {
+            const val = Number(cal.HUM_INVENT);
+            if (!isNaN(val)) return val;
+        }
+        if (cal.hum_invent !== undefined && cal.hum_invent !== null && cal.hum_invent !== '') {
+            const val = Number(cal.hum_invent);
+            if (!isNaN(val)) return val;
+        }
+        // Prioridad 2: HUMEDAD / humedad
+        if (cal.HUMEDAD !== undefined && cal.HUMEDAD !== null && cal.HUMEDAD !== '') {
+            const val = Number(cal.HUMEDAD);
+            if (!isNaN(val)) return val;
+        }
+        if (cal.humedad !== undefined && cal.humedad !== null && cal.humedad !== '') {
+            const val = Number(cal.humedad);
+            if (!isNaN(val)) return val;
+        }
+        // Prioridad 3: PROM_HUMEDAD
+        if (cal.PROM_HUMEDAD !== undefined && cal.PROM_HUMEDAD !== null && cal.PROM_HUMEDAD !== '') {
+            const val = Number(cal.PROM_HUMEDAD);
+            if (!isNaN(val)) return val;
+        }
+        // Prioridad 4: Promedio de muestras de calidad
+        const m1 = Number(cal.MUESTRA_1 !== undefined ? cal.MUESTRA_1 : cal.muestra_1);
+        const m2 = Number(cal.MUESTRA_2 !== undefined ? cal.MUESTRA_2 : cal.muestra_2);
+        const m3 = Number(cal.MUESTRA_3 !== undefined ? cal.MUESTRA_3 : cal.muestra_3);
+        const validM = [m1, m2, m3].filter(m => !isNaN(m) && m > 0);
+        if (validM.length > 0) {
+            return validM.reduce((a, b) => a + b, 0) / validM.length;
+        }
+    }
+    if (aries) {
+        if (aries.HUM_REAL_I !== undefined && aries.HUM_REAL_I !== null && aries.HUM_REAL_I !== '') {
+            const val = Number(aries.HUM_REAL_I);
+            if (!isNaN(val)) return val;
+        }
+        if (aries.hum_real_i !== undefined && aries.hum_real_i !== null && aries.hum_real_i !== '') {
+            const val = Number(aries.hum_real_i);
+            if (!isNaN(val)) return val;
+        }
+        if (aries.HUMEDADRMP !== undefined && aries.HUMEDADRMP !== null && aries.HUMEDADRMP !== '') {
+            const val = Number(aries.HUMEDADRMP);
+            if (!isNaN(val)) return val;
+        }
+        if (aries.humedadrmp !== undefined && aries.humedadrmp !== null && aries.humedadrmp !== '') {
+            const val = Number(aries.humedadrmp);
+            if (!isNaN(val)) return val;
+        }
+    }
+    return null;
+}
+
+// Helper para obtener las Impurezas del Boleto
+function getTicketImpurity(cal, aries) {
+    if (cal) {
+        if (cal.IMPUREZA !== undefined && cal.IMPUREZA !== null && cal.IMPUREZA !== '') {
+            const val = Number(cal.IMPUREZA);
+            if (!isNaN(val)) return val;
+        }
+        if (cal.impureza !== undefined && cal.impureza !== null && cal.impureza !== '') {
+            const val = Number(cal.impureza);
+            if (!isNaN(val)) return val;
+        }
+        if (cal.IMP_REAL !== undefined && cal.IMP_REAL !== null && cal.IMP_REAL !== '') {
+            const val = Number(cal.IMP_REAL);
+            if (!isNaN(val)) return val;
+        }
+        if (cal.imp_real !== undefined && cal.imp_real !== null && cal.imp_real !== '') {
+            const val = Number(cal.imp_real);
+            if (!isNaN(val)) return val;
+        }
+        if (cal.IMP !== undefined && cal.IMP !== null && cal.IMP !== '') {
+            const val = Number(cal.IMP);
+            if (!isNaN(val)) return val;
+        }
+    }
+    if (aries) {
+        if (aries.IMPUREZRMP !== undefined && aries.IMPUREZRMP !== null && aries.IMPUREZRMP !== '') {
+            const val = Number(aries.IMPUREZRMP);
+            if (!isNaN(val)) return val;
+        }
+        if (aries.impurezrmp !== undefined && aries.impurezrmp !== null && aries.impurezrmp !== '') {
+            const val = Number(aries.impurezrmp);
+            if (!isNaN(val)) return val;
+        }
+    }
+    return null;
+}
+
 function renderDashboardDrilldownTable() {
     const tbody = document.getElementById('dashboard-drilldown-tbody');
     if (!tbody) return;
@@ -1518,10 +1611,11 @@ function renderDashboardDrilldownTable() {
         if (dashboardFilter.search) {
             const q = dashboardFilter.search;
             const strTicket = String(row.TICKETPESO || '');
-            const strPlaca = String(row.PLACA || '').toLowerCase();
-            const strProv = String(row.NOMBREP || row.NOMBREPROV || row.TITULOA || '').toLowerCase();
-            const strChof = String(row.NOMCHOF || '').toLowerCase();
-            const strProd = String(row.DESCRIPCIO || '').toLowerCase();
+            const cal = calidadMap[Number(row.TICKETPESO)];
+            const strPlaca = String(row.PLACAST || row.PLACA || (cal ? (cal.PLACA_VEHI || cal.placa_vehi) : '') || '').toLowerCase();
+            const strProv = String(row.NOMBREP || row.NOMBREPROV || row.TITULOA || (cal ? (cal.NOMBREP || cal.nombrep) : '') || '').toLowerCase();
+            const strChof = String(row.NOMCHOF || row.nomchof || '').toLowerCase();
+            const strProd = String(row.DESCRIPCIO || row.TITULOA || (cal ? (cal.NOM_ARTIC || cal.nom_artic) : '') || '').toLowerCase();
             if (!strTicket.includes(q) && !strPlaca.includes(q) && !strProv.includes(q) && !strChof.includes(q) && !strProd.includes(q)) {
                 return false;
             }
@@ -1565,20 +1659,26 @@ function renderDashboardDrilldownTable() {
             const isPurchase = Number(row.PESOARTIC) === 1;
             const dateStr = formatDateReadable(row.FECHAENTRA);
             const timeStr = row.HORAENTRA ? String(row.HORAENTRA).substring(0, 5) : '';
-            const placa = row.PLACA || '-';
-            const prov = row.NOMBREP || row.NOMBREPROV || row.TITULOA || 'Proveedor Balzar';
-            const chof = row.NOMCHOF || '';
-            const kilos = Number(row.PESOKILOS || 0);
+            const cal = calidadMap[ticketNo];
+            const placa = row.PLACAST || row.PLACA || (cal ? (cal.PLACA_VEHI || cal.placa_vehi) : '') || '-';
+            const prov = row.NOMBREP || row.NOMBREPROV || row.TITULOA || (cal ? (cal.NOMBREP || cal.nombrep) : '') || 'Proveedor Balzar';
+            const chof = row.NOMCHOF || row.nomchof || '';
+            const kilos = Number(row.PESOKILOS || row.pesokilos || (cal ? (cal.KG_NETO || cal.kg_neto) : 0) || 0);
             const tons = (kilos / 1000).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const hasCm = cmSet.has(ticketNo);
 
-            const cal = calidadMap[ticketNo];
-            const isRej = (row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S') || (cal && String(cal.CONFIRMA || '').toUpperCase().startsWith('RECHAZA'));
+            const isRej = (row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S') || (cal && String(cal.CONFIRMA || cal.confirma || '').toUpperCase().startsWith('RECHAZA'));
 
+            const humVal = getTicketHumidity(cal, row);
+            const impVal = getTicketImpurity(cal, row);
             let humDisplay = '-';
-            if (cal && cal.PROM_HUMEDAD !== undefined && cal.PROM_HUMEDAD !== null && cal.PROM_HUMEDAD !== '') {
-                humDisplay = `${Number(cal.PROM_HUMEDAD).toFixed(1)}%`;
-                if (cal.IMP) humDisplay += ` | ${Number(cal.IMP).toFixed(1)}% Imp`;
+            if (humVal !== null) {
+                humDisplay = `<span style="font-weight:700; color:#0284c7;">${humVal.toFixed(1)}%</span>`;
+                if (impVal !== null) {
+                    humDisplay += ` <span style="color:var(--text-muted); font-size:0.75rem; white-space:nowrap;">| ${impVal.toFixed(1)}% Imp</span>`;
+                }
+            } else if (impVal !== null) {
+                humDisplay = `<span style="color:var(--text-muted); font-size:0.75rem;">${impVal.toFixed(1)}% Imp</span>`;
             }
 
             const typePill = isPurchase 
@@ -1670,23 +1770,31 @@ function openDashboardTicketModal(ticketNo) {
     const body = document.getElementById('dtm-body');
     if (!body) return;
 
-    const dateEntra = ariesRow ? formatDateReadable(ariesRow.FECHAENTRA) : '-';
-    const horaEntra = ariesRow && ariesRow.HORAENTRA ? String(ariesRow.HORAENTRA).substring(0, 8) : '-';
-    const dateSale = ariesRow && ariesRow.FECHASALE ? formatDateReadable(ariesRow.FECHASALE) : '-';
-    const horaSale = ariesRow && ariesRow.HORASALE ? String(ariesRow.HORASALE).substring(0, 8) : '-';
+    const dateEntra = ariesRow ? formatDateReadable(ariesRow.FECHAENTRA) : (calRow ? formatDateReadable(calRow.FECHAENTRA) : '-');
+    const horaEntra = (ariesRow && ariesRow.HORAENTRA) ? String(ariesRow.HORAENTRA).substring(0, 8) : ((calRow && calRow.HORAENTRA) ? String(calRow.HORAENTRA).substring(0, 8) : '-');
+    const dateSale = (ariesRow && ariesRow.FECHASALE) ? formatDateReadable(ariesRow.FECHASALE) : (calRow && calRow.FECHASALE ? formatDateReadable(calRow.FECHASALE) : '-');
+    const horaSale = (ariesRow && ariesRow.HORASALE) ? String(ariesRow.HORASALE).substring(0, 8) : (calRow && calRow.HORASALE ? String(calRow.HORASALE).substring(0, 8) : '-');
 
-    const placa = ariesRow ? (ariesRow.PLACA || '-') : '-';
-    const prov = ariesRow ? (ariesRow.NOMBREP || ariesRow.NOMBREPROV || ariesRow.TITULOA || 'No especificado') : '-';
-    const chof = ariesRow ? (ariesRow.NOMCHOF || 'No especificado') : '-';
-    const prod = ariesRow ? (ariesRow.DESCRIPCIO || 'MAIZ AMARILLO') : 'MAIZ';
+    const placa = (ariesRow && (ariesRow.PLACAST || ariesRow.PLACA)) || (calRow && (calRow.PLACA_VEHI || calRow.placa_vehi)) || '-';
+    const prov = (ariesRow && (ariesRow.NOMBREP || ariesRow.NOMBREPROV || ariesRow.TITULOA)) || (calRow && (calRow.NOMBREP || calRow.nombrep)) || 'No especificado';
+    const chof = (ariesRow && (ariesRow.NOMCHOF || ariesRow.nomchof)) || '-';
+    const prod = (ariesRow && (ariesRow.DESCRIPCIO || ariesRow.TITULOA)) || (calRow && (calRow.NOM_ARTIC || calRow.nom_artic)) || 'MAIZ AMARILLO';
 
-    const pBruto = ariesRow && ariesRow.PESOBRUTO !== undefined ? Number(ariesRow.PESOBRUTO).toLocaleString('es-EC') + ' kg' : '-';
-    const pTara = ariesRow && ariesRow.TARA !== undefined ? Number(ariesRow.TARA).toLocaleString('es-EC') + ' kg' : '-';
-    const pKilos = ariesRow && ariesRow.PESOKILOS !== undefined ? Number(ariesRow.PESOKILOS).toLocaleString('es-EC') + ' kg' : '-';
-    const pTn = ariesRow && ariesRow.PESOKILOS !== undefined ? (Number(ariesRow.PESOKILOS)/1000).toFixed(2) + ' Tn' : '-';
+    const pBruto = ariesRow && ariesRow.PESOBRUTO !== undefined && ariesRow.PESOBRUTO !== null ? Number(ariesRow.PESOBRUTO).toLocaleString('es-EC') + ' kg' : '-';
+    const pTara = ariesRow && ariesRow.TARA !== undefined && ariesRow.TARA !== null ? Number(ariesRow.TARA).toLocaleString('es-EC') + ' kg' : '-';
+    const pKilosNum = ariesRow && ariesRow.PESOKILOS !== undefined && ariesRow.PESOKILOS !== null ? Number(ariesRow.PESOKILOS) : (calRow && (calRow.KG_NETO || calRow.kg_neto) ? Number(calRow.KG_NETO || calRow.kg_neto) : null);
+    const pKilos = pKilosNum !== null ? pKilosNum.toLocaleString('es-EC') + ' kg' : '-';
+    const pTn = pKilosNum !== null ? (pKilosNum / 1000).toFixed(2) + ' Tn' : '-';
 
     const isPurchase = ariesRow ? Number(ariesRow.PESOARTIC) === 1 : true;
-    const isRej = (ariesRow && ariesRow.RECHAZA_PS && String(ariesRow.RECHAZA_PS).trim().toUpperCase() === 'S') || (calRow && String(calRow.CONFIRMA || '').toUpperCase().startsWith('RECHAZA'));
+    const isRej = (ariesRow && ariesRow.RECHAZA_PS && String(ariesRow.RECHAZA_PS).trim().toUpperCase() === 'S') || (calRow && String(calRow.CONFIRMA || calRow.confirma || '').toUpperCase().startsWith('RECHAZA'));
+
+    const humVal = getTicketHumidity(calRow, ariesRow);
+    const impVal = getTicketImpurity(calRow, ariesRow);
+    const impReal = calRow ? (calRow.IMP_REAL !== undefined ? calRow.IMP_REAL : calRow.imp_real) : null;
+    const inspector = calRow ? (calRow.INSPECTOR || calRow.inspector || 'No asignado') : 'No asignado';
+    const densidad = calRow ? (calRow.DENSIDAD !== undefined ? calRow.DENSIDAD : calRow.densidad) : null;
+    const silos = (calRow && (calRow.IDSILOS || calRow.idsilos)) || (ariesRow && (ariesRow.IDSILOS || ariesRow.idsilos)) || '-';
 
     body.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid var(--border-color);">
@@ -1722,35 +1830,48 @@ function openDashboardTicketModal(ticketNo) {
         </div>
 
         <div style="margin-bottom:18px;">
-            <h4 style="margin:0 0 10px 0; font-size:0.88rem; color:var(--text-muted); text-transform:uppercase; font-weight:700; display:flex; align-items:center; gap:6px;">
-                <i class="fa-solid fa-flask-vial" style="color:#0284c7;"></i> Análisis de Calidad (Laboratorio)
-            </h4>
-            ${calRow ? `
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(100px, 1fr)); gap:8px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
-                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
-                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% HUMEDAD</div>
-                        <div style="font-size:1.15rem; font-weight:800; color:#0284c7;">${calRow.PROM_HUMEDAD ? Number(calRow.PROM_HUMEDAD).toFixed(1) + '%' : '-'}</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h4 style="margin:0; font-size:0.88rem; color:var(--text-muted); text-transform:uppercase; font-weight:700; display:flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-flask-vial" style="color:#0284c7;"></i> Análisis de Calidad (Laboratorio)
+                </h4>
+                ${inspector !== 'No asignado' ? `<span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-user-check" style="color:#0284c7; margin-right:4px;"></i>Inspector: <strong style="color:var(--text-main);">${inspector}</strong></span>` : ''}
+            </div>
+            ${(calRow || humVal !== null) ? `
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; letter-spacing:0.3px;">% HUMEDAD INVT</div>
+                        <div style="font-size:1.25rem; font-weight:800; color:#0284c7;">${humVal !== null ? humVal.toFixed(1) + '%' : '-'}</div>
+                        ${calRow && (calRow.MUESTRA_1 || calRow.muestra_1) ? `<div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">M1: ${Number(calRow.MUESTRA_1 !== undefined ? calRow.MUESTRA_1 : calRow.muestra_1).toFixed(1)}% | M2: ${Number(calRow.MUESTRA_2 !== undefined ? calRow.MUESTRA_2 : calRow.muestra_2).toFixed(1)}%</div>` : ''}
                     </div>
-                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
-                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% IMPUREZAS</div>
-                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.IMP ? Number(calRow.IMP).toFixed(1) + '%' : '-'}</div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; letter-spacing:0.3px;">% IMPUREZAS</div>
+                        <div style="font-size:1.25rem; font-weight:800; color:var(--text-main);">${impVal !== null ? impVal.toFixed(1) + '%' : '-'}</div>
+                        ${impReal !== null && impReal !== undefined && impReal !== '' ? `<div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">Real: ${Number(impReal).toFixed(2)}%</div>` : ''}
                     </div>
-                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
-                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% PARTIDOS</div>
-                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.PARTIDOS ? Number(calRow.PARTIDOS).toFixed(1) + '%' : '-'}</div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; letter-spacing:0.3px;">% PARTIDOS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow && (calRow.PARTIDOS !== undefined ? calRow.PARTIDOS : calRow.partidos) !== null && (calRow.PARTIDOS !== undefined ? calRow.PARTIDOS : calRow.partidos) !== undefined ? Number(calRow.PARTIDOS !== undefined ? calRow.PARTIDOS : calRow.partidos).toFixed(1) + '%' : '-'}</div>
                     </div>
-                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
-                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% PODRIDOS</div>
-                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.PODRIDOS ? Number(calRow.PODRIDOS).toFixed(1) + '%' : '-'}</div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; letter-spacing:0.3px;">% PODRIDOS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow && (calRow.PODRIDOS !== undefined ? calRow.PODRIDOS : calRow.podridos) !== null && (calRow.PODRIDOS !== undefined ? calRow.PODRIDOS : calRow.podridos) !== undefined ? Number(calRow.PODRIDOS !== undefined ? calRow.PODRIDOS : calRow.podridos).toFixed(1) + '%' : '-'}</div>
                     </div>
-                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
-                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">% HONGOS</div>
-                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.HONGOS ? Number(calRow.HONGOS).toFixed(1) + '%' : '-'}</div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; letter-spacing:0.3px;">% HONGOS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow && (calRow.HONGOS !== undefined ? calRow.HONGOS : calRow.hongos) !== null && (calRow.HONGOS !== undefined ? calRow.HONGOS : calRow.hongos) !== undefined ? Number(calRow.HONGOS !== undefined ? calRow.HONGOS : calRow.hongos).toFixed(1) + '%' : '-'}</div>
                     </div>
-                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color);">
-                        <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">INSECTOS</div>
-                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow.INSECTOS || 0}</div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; letter-spacing:0.3px;">INSECTOS</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${calRow ? ((calRow.INSECTOS !== undefined ? calRow.INSECTOS : calRow.insectos) || 0) : '-'}</div>
                     </div>
+                    <div style="background:white; padding:8px; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; letter-spacing:0.3px;">DENSIDAD</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:var(--text-main);">${densidad ? Number(densidad).toFixed(1) : '-'}</div>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:8px; font-size:0.8rem; background:#f8fafc; padding:8px 12px; border-radius:6px; border:1px solid var(--border-color);">
+                    <div><span style="color:var(--text-muted);">Silo / Destino:</span> <strong>${silos}</strong></div>
+                    <div><span style="color:var(--text-muted);">Decisión Calidad:</span> <strong style="color:${isRej ? '#EF4444' : '#10B981'};">${calRow ? (calRow.CONFIRMA || calRow.confirma || (isRej ? 'Rechazado' : 'Aceptado')) : (isRej ? 'Rechazado' : 'Aceptado')}</strong></div>
                 </div>
             ` : `
                 <div style="background:#fffbeb; border:1px solid #fef3c7; color:#92400e; padding:12px; border-radius:8px; font-size:0.82rem;">
@@ -4526,6 +4647,7 @@ function processExcelSyncWorkbook(workbook, fileName) {
 
             const fEntra = r.FECHAENTRA instanceof Date ? r.FECHAENTRA.toISOString().split('T')[0] : (r.FECHAENTRA ? String(r.FECHAENTRA).substring(0, 10) : null);
             const fSale = r.FECHASALE instanceof Date ? r.FECHASALE.toISOString().split('T')[0] : (r.FECHASALE ? String(r.FECHASALE).substring(0, 10) : null);
+            const placaStr = r.PLACAST || r.placast || r.PLACA || r.placa || r.PLACA_VEHI || null;
 
             recepcionesPayload.push({
                 ticketpeso: Number(ticket),
@@ -4534,17 +4656,17 @@ function processExcelSyncWorkbook(workbook, fileName) {
                 fechasale: fSale,
                 horasale: r.HORASALE ? String(r.HORASALE).substring(0, 20) : null,
                 tituloa: r.TITULOA || null,
-                nombrep: r.NOMBREP || null,
-                pesobruto: r.PESOBRUTO !== null ? Number(r.PESOBRUTO) : null,
-                tara: r.TARA !== null ? Number(r.TARA) : null,
-                pesokilos: r.PESOKILOS !== null ? Number(r.PESOKILOS) : null,
-                humedadrmp: r.HUMEDADRMP !== null ? Number(r.HUMEDADRMP) : null,
-                impurezrmp: r.IMPUREZRMP !== null ? Number(r.IMPUREZRMP) : null,
-                hum_real_i: r.HUM_REAL_I !== null ? Number(r.HUM_REAL_I) : null,
-                placast: r.PLACAST ? String(r.PLACAST).substring(0, 20) : null,
+                nombrep: r.NOMBREP || r.nombrep || r.NOMBREPROV || null,
+                pesobruto: r.PESOBRUTO !== null && r.PESOBRUTO !== undefined ? Number(r.PESOBRUTO) : null,
+                tara: r.TARA !== null && r.TARA !== undefined ? Number(r.TARA) : null,
+                pesokilos: r.PESOKILOS !== null && r.PESOKILOS !== undefined ? Number(r.PESOKILOS) : null,
+                humedadrmp: (r.HUMEDADRMP !== null && r.HUMEDADRMP !== undefined && r.HUMEDADRMP !== '') ? Number(r.HUMEDADRMP) : ((r.HUM_INVENT !== null && r.HUM_INVENT !== undefined && r.HUM_INVENT !== '') ? Number(r.HUM_INVENT) : null),
+                impurezrmp: (r.IMPUREZRMP !== null && r.IMPUREZRMP !== undefined && r.IMPUREZRMP !== '') ? Number(r.IMPUREZRMP) : ((r.IMPUREZA !== null && r.IMPUREZA !== undefined && r.IMPUREZA !== '') ? Number(r.IMPUREZA) : null),
+                hum_real_i: r.HUM_REAL_I !== null && r.HUM_REAL_I !== undefined ? Number(r.HUM_REAL_I) : null,
+                placast: placaStr ? String(placaStr).substring(0, 20) : null,
                 guiat: r.GUIAT ? String(r.GUIAT).substring(0, 50) : null,
                 nrecepcion: r.NRECEPCION ? Number(r.NRECEPCION) : null,
-                pesoartic: r.PESOARTIC !== null ? Number(r.PESOARTIC) : null,
+                pesoartic: r.PESOARTIC !== null && r.PESOARTIC !== undefined ? Number(r.PESOARTIC) : null,
                 rechaza_ps: r.RECHAZA_PS ? String(r.RECHAZA_PS).substring(0, 10) : null,
                 idsilos: r.IDSILOS ? String(r.IDSILOS).substring(0, 50) : null,
                 centro_sap: r.CENTRO_SAP ? String(r.CENTRO_SAP).substring(0, 50) : null
@@ -4619,6 +4741,14 @@ function processExcelSyncWorkbook(workbook, fileName) {
             if (!ticket) return;
 
             const fEntra = r.FECHAENTRA instanceof Date ? r.FECHAENTRA.toISOString().split('T')[0] : (r.FECHAENTRA ? String(r.FECHAENTRA).substring(0, 10) : null);
+            const calPlaca = r.PLACA_VEHI || r.placa_vehi || r.PLACA || r.placa || null;
+            const humVal = (r.HUM_INVENT !== undefined && r.HUM_INVENT !== null && r.HUM_INVENT !== '') 
+                ? Number(r.HUM_INVENT) 
+                : ((r.HUMEDAD !== undefined && r.HUMEDAD !== null && r.HUMEDAD !== '') ? Number(r.HUMEDAD) : null);
+            const impVal = (r.IMPUREZA !== undefined && r.IMPUREZA !== null && r.IMPUREZA !== '') 
+                ? Number(r.IMPUREZA) 
+                : ((r.IMP_REAL !== undefined && r.IMP_REAL !== null && r.IMP_REAL !== '') ? Number(r.IMP_REAL) : null);
+            const impRealVal = (r.IMP_REAL !== undefined && r.IMP_REAL !== null && r.IMP_REAL !== '') ? Number(r.IMP_REAL) : null;
 
             calidadPayload.push({
                 ticketpeso: Number(ticket),
@@ -4626,23 +4756,23 @@ function processExcelSyncWorkbook(workbook, fileName) {
                 fechaentra: fEntra,
                 horaentra: r.HORAENTRA ? String(r.HORAENTRA).substring(0, 20) : null,
                 nom_artic: r.NOM_ARTIC || null,
-                nombrep: r.NOMBREP || null,
-                placa_vehi: r.PLACA_VEHI ? String(r.PLACA_VEHI).substring(0, 20) : null,
-                kg_neto: r.KG_NETO !== null ? Number(r.KG_NETO) : null,
-                humedad: r.HUMEDAD !== null ? Number(r.HUMEDAD) : null,
-                impureza: r.IMPUREZA !== null ? Number(r.IMPUREZA) : null,
-                imp_real: r.IMP_REAL !== null ? Number(r.IMP_REAL) : null,
-                partidos: r.PARTIDOS !== null ? Number(r.PARTIDOS) : null,
-                insectos: r.INSECTOS !== null ? Number(r.INSECTOS) : null,
-                calor: r.CALOR !== null ? Number(r.CALOR) : null,
-                hongos: r.HONGOS !== null ? Number(r.HONGOS) : null,
-                podridos: r.PODRIDOS !== null ? Number(r.PODRIDOS) : null,
-                densidad: r.DENSIDAD !== null ? Number(r.DENSIDAD) : null,
-                muestra_1: r.MUESTRA_1 !== null ? Number(r.MUESTRA_1) : null,
-                muestra_2: r.MUESTRA_2 !== null ? Number(r.MUESTRA_2) : null,
-                muestra_3: r.MUESTRA_3 !== null ? Number(r.MUESTRA_3) : null,
+                nombrep: r.NOMBREP || r.nombrep || r.NOMBREPROV || null,
+                placa_vehi: calPlaca ? String(calPlaca).substring(0, 20) : null,
+                kg_neto: r.KG_NETO !== null && r.KG_NETO !== undefined ? Number(r.KG_NETO) : null,
+                humedad: humVal,
+                impureza: impVal,
+                imp_real: impRealVal,
+                partidos: r.PARTIDOS !== null && r.PARTIDOS !== undefined ? Number(r.PARTIDOS) : null,
+                insectos: r.INSECTOS !== null && r.INSECTOS !== undefined ? Number(r.INSECTOS) : null,
+                calor: r.CALOR !== null && r.CALOR !== undefined ? Number(r.CALOR) : null,
+                hongos: r.HONGOS !== null && r.HONGOS !== undefined ? Number(r.HONGOS) : null,
+                podridos: r.PODRIDOS !== null && r.PODRIDOS !== undefined ? Number(r.PODRIDOS) : null,
+                densidad: r.DENSIDAD !== null && r.DENSIDAD !== undefined ? Number(r.DENSIDAD) : null,
+                muestra_1: r.MUESTRA_1 !== null && r.MUESTRA_1 !== undefined ? Number(r.MUESTRA_1) : null,
+                muestra_2: r.MUESTRA_2 !== null && r.MUESTRA_2 !== undefined ? Number(r.MUESTRA_2) : null,
+                muestra_3: r.MUESTRA_3 !== null && r.MUESTRA_3 !== undefined ? Number(r.MUESTRA_3) : null,
                 idsilos: r.IDSILOS ? String(r.IDSILOS).substring(0, 50) : null,
-                inspector: r.INSPECTOR || null,
+                inspector: r.INSPECTOR || r.inspector || null,
                 confirma: r.CONFIRMA || null
             });
         });

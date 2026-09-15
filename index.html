@@ -6,7 +6,7 @@
     <title>Planta Manta - Control de Calidad</title>
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="app.css?v=3.8">
+    <link rel="stylesheet" href="app.css?v=3.9">
     
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -72,8 +72,9 @@
     <!-- 0. PANTALLA DE CARGA DE ARCHIVO (UPLOAD SCREEN) -->
     <div id="file-upload-screen" class="upload-screen hidden">
         <div class="upload-card">
-            <div class="landing-logo" style="font-size: 2.2rem; margin-bottom: 4px;">PLANTA MANTA</div>
-            <div class="landing-tagline" style="font-size: 0.95rem; margin-bottom: 24px;">Control de Calidad y Contramuestras</div>
+            <img src="Logo.png" alt="Pronaca" style="height: 42px; margin-bottom: 12px; object-fit: contain;">
+            <div class="landing-pretitle">Planta Manta • Control de Calidad</div>
+            <div class="landing-tagline" style="font-size: 0.95rem; margin-bottom: 24px;">Carga de Archivo Excel Libro1.xlsx</div>
             
             <div class="upload-icon">
                 <i class="fa-solid fa-file-excel"></i>
@@ -99,44 +100,99 @@
     <!-- 1. LANDING SCREEN (PANTALLA DE INICIO) -->
     <div id="landing-screen" class="landing-screen">
         <div class="landing-card">
-            <div class="landing-logo">PLANTA MANTA</div>
-            <div class="landing-tagline">Sistema de Control de Calidad y Registro de Contramuestras</div>
-            <div class="landing-buttons">
-                <button class="btn-landing btn-landing-primary" onclick="showAppView('dashboard')">
-                    <i class="fa-solid fa-chart-line"></i>
-                    Ver Dashboard
-                    <span>Avance de compras y despachos</span>
-                </button>
-                <button class="btn-landing btn-landing-secondary" onclick="showAppView('contramuestra')">
-                    <i class="fa-solid fa-vial-circle-check"></i>
-                    Registro Contramuestra
-                    <span>Selección aleatoria y captura</span>
-                </button>
-                <button class="btn-landing btn-landing-accent" onclick="showAppView('historial')">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                    Historial Contramuestra
-                    <span>Ver contramuestras guardadas</span>
-                </button>
-                <button class="btn-landing" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; border: none;" onclick="showAppView('antimicotico')">
-                    <i class="fa-solid fa-droplet"></i>
-                    Consumo Antimicótico
-                    <span>Registro diario de bines y consumo</span>
-                </button>
-                <button class="btn-landing" style="background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); color: white; border: none;" onclick="showAppView('fotografico')">
-                    <i class="fa-solid fa-camera-retro"></i>
-                    Seguimiento Fotográfico
-                    <span>Fotos en compras y transferencias</span>
-                </button>
-                <button class="btn-landing" style="background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; border: none;" onclick="navigateToSync('recepciones')">
-                    <i class="fa-solid fa-truck"></i>
-                    Actualizar Recepciones
-                    <span>Cargar Excel a tabla Recepciones (Aries)</span>
-                </button>
-                <button class="btn-landing" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; border: none;" onclick="navigateToSync('calidad')">
-                    <i class="fa-solid fa-vial"></i>
-                    Actualizar Calidad
-                    <span>Cargar Excel a tabla Calidad</span>
-                </button>
+            <div class="landing-header-top">
+                <img src="Logo.png" alt="Pronaca" style="height: 44px; object-fit: contain;">
+                <div class="landing-brand-badge">
+                    <span class="status-dot"></span> Base de Datos en Línea
+                </div>
+            </div>
+
+            <div class="landing-pretitle">Planta Manta • Control de Calidad</div>
+            <h1 class="landing-title">Portal Operativo de Recepción y Grano</h1>
+            <p class="landing-tagline">Seleccione el módulo al que desea ingresar para gestionar pesaje, contramuestras o evidencias fotográficas.</p>
+
+            <!-- 6 Módulos Principales (Grid 3x2 Simétrico y Elegante) -->
+            <div class="landing-modules-grid">
+                <!-- 1. Dashboard -->
+                <div class="module-card" style="--module-accent: #10B981; --icon-bg: rgba(16, 185, 129, 0.1);" onclick="showAppView('dashboard')">
+                    <div class="module-icon-box">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <div class="module-info">
+                        <div class="module-title">Dashboard de Avance <i class="fa-solid fa-chevron-right module-arrow"></i></div>
+                        <p class="module-desc">Monitoreo de compras, despachos y calidad en tiempo real</p>
+                    </div>
+                </div>
+
+                <!-- 2. Registro Contramuestra -->
+                <div class="module-card" style="--module-accent: #E2001A; --icon-bg: rgba(226, 0, 26, 0.1);" onclick="showAppView('contramuestra')">
+                    <div class="module-icon-box">
+                        <i class="fa-solid fa-vial-circle-check"></i>
+                    </div>
+                    <div class="module-info">
+                        <div class="module-title">Registro Contramuestra <i class="fa-solid fa-chevron-right module-arrow"></i></div>
+                        <p class="module-desc">Selección aleatoria de boletos y captura de análisis</p>
+                    </div>
+                </div>
+
+                <!-- 3. Historial Contramuestra -->
+                <div class="module-card" style="--module-accent: #F59E0B; --icon-bg: rgba(245, 158, 11, 0.1);" onclick="showAppView('historial')">
+                    <div class="module-icon-box">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <div class="module-info">
+                        <div class="module-title">Historial Contramuestra <i class="fa-solid fa-chevron-right module-arrow"></i></div>
+                        <p class="module-desc">Trazabilidad y auditoría de contramuestras guardadas</p>
+                    </div>
+                </div>
+
+                <!-- 4. Consumo Antimicótico -->
+                <div class="module-card" style="--module-accent: #0284c7; --icon-bg: rgba(2, 132, 199, 0.1);" onclick="showAppView('antimicotico')">
+                    <div class="module-icon-box">
+                        <i class="fa-solid fa-droplet"></i>
+                    </div>
+                    <div class="module-info">
+                        <div class="module-title">Consumo Antimicótico <i class="fa-solid fa-chevron-right module-arrow"></i></div>
+                        <p class="module-desc">Control diario de dosificación, bines y existencias</p>
+                    </div>
+                </div>
+
+                <!-- 5. Seguimiento Fotográfico -->
+                <div class="module-card" style="--module-accent: #8B5CF6; --icon-bg: rgba(139, 92, 246, 0.1);" onclick="showAppView('fotografico')">
+                    <div class="module-icon-box">
+                        <i class="fa-solid fa-camera-retro"></i>
+                    </div>
+                    <div class="module-info">
+                        <div class="module-title">Seguimiento Fotográfico <i class="fa-solid fa-chevron-right module-arrow"></i></div>
+                        <p class="module-desc">Registro de evidencias en compras y transferencias</p>
+                    </div>
+                </div>
+
+                <!-- 6. Cargar Excel -->
+                <div class="module-card" style="--module-accent: #4F46E5; --icon-bg: rgba(79, 70, 229, 0.1);" onclick="showAppView('sync')">
+                    <div class="module-icon-box">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <div class="module-info">
+                        <div class="module-title">Cargar Archivo Excel <i class="fa-solid fa-chevron-right module-arrow"></i></div>
+                        <p class="module-desc">Sincronización masiva de tablas con Supabase</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de Actualización Rápida de Base de Datos -->
+            <div class="landing-sync-bar">
+                <div class="sync-bar-label">
+                    <i class="fa-solid fa-arrows-rotate" style="color: #E2001A;"></i> Actualización Rápida de Base de Datos (Excel Diario)
+                </div>
+                <div class="sync-bar-buttons">
+                    <button class="btn-sync-action btn-sync-recep" onclick="navigateToSync('recepciones')">
+                        <i class="fa-solid fa-truck"></i> Actualizar Recepciones (Aries)
+                    </button>
+                    <button class="btn-sync-action btn-sync-calid" onclick="navigateToSync('calidad')">
+                        <i class="fa-solid fa-vial"></i> Actualizar Calidad
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -1216,6 +1272,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=3.8"></script>
+    <script src="app.js?v=4.0"></script>
 </body>
 </html>
