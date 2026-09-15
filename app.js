@@ -1051,6 +1051,7 @@ function renderDashboardStats(selectedMonth) {
     renderVolumeChart(selectedMonth);
     renderStatusChart(selectedMonth);
     renderDashboardDrilldownTable();
+    updateFotograficoKPIs(selectedMonth);
 }
 
 // ==============================================================================
@@ -4244,10 +4245,12 @@ function saveSeguimientoFotografico() {
     });
 }
 
-function updateFotograficoKPIs() {
+function updateFotograficoKPIs(targetMonth) {
     const list = appData.seguimiento_fotografico || [];
     const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonth = (targetMonth && targetMonth !== 'all') 
+        ? targetMonth 
+        : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     let mesFotosCompras = 0;
     let mesTotalCompras = 0;
@@ -4257,7 +4260,7 @@ function updateFotograficoKPIs() {
 
     list.forEach(r => {
         const d = formatDateReadable(r.fecha || r.FECHA);
-        if (d && d.startsWith(currentMonth)) {
+        if (targetMonth === 'all' || (d && d.startsWith(currentMonth))) {
             mesFotosCompras += parseInt(r.fotos_compras || 0, 10);
             mesTotalCompras += parseInt(r.compras_total || 0, 10);
             mesFotosTransf += parseInt(r.fotos_transf || 0, 10);
@@ -4269,6 +4272,7 @@ function updateFotograficoKPIs() {
     const pctCompras = mesTotalCompras > 0 ? (mesFotosCompras / mesTotalCompras) * 100 : 0;
     const pctTransf = mesTotalTransf > 0 ? (mesFotosTransf / mesTotalTransf) * 100 : 0;
 
+    // En módulo Fotográfico
     const elValCompras = document.getElementById('kpi-foto-compras-mes');
     const elSubCompras = document.getElementById('kpi-foto-compras-sub');
     if (elValCompras) elValCompras.innerText = `${mesFotosCompras} / ${mesTotalCompras}`;
@@ -4281,6 +4285,23 @@ function updateFotograficoKPIs() {
 
     const elDias = document.getElementById('kpi-foto-dias-reg');
     if (elDias) elDias.innerText = list.length;
+
+    // En Dashboard Principal (Pestaña Principal)
+    const elDashValCompras = document.getElementById('dash-foto-compras-val');
+    const elDashSubCompras = document.getElementById('dash-foto-compras-sub');
+    if (elDashValCompras) elDashValCompras.innerText = `${mesFotosCompras} / ${mesTotalCompras}`;
+    if (elDashSubCompras) {
+        elDashSubCompras.innerText = `${pctCompras.toFixed(1)}% cumplimiento (${pctCompras >= 40 ? 'Cumple' : 'Bajo meta'})`;
+        elDashSubCompras.style.color = pctCompras >= 40 ? '#10B981' : '#EF4444';
+    }
+
+    const elDashValTransf = document.getElementById('dash-foto-transf-val');
+    const elDashSubTransf = document.getElementById('dash-foto-transf-sub');
+    if (elDashValTransf) elDashValTransf.innerText = `${mesFotosTransf} / ${mesTotalTransf}`;
+    if (elDashSubTransf) {
+        elDashSubTransf.innerText = `${pctTransf.toFixed(1)}% cumplimiento (${pctTransf >= 40 ? 'Cumple' : 'Bajo meta'})`;
+        elDashSubTransf.style.color = pctTransf >= 40 ? '#10B981' : '#EF4444';
+    }
 }
 
 function renderFotograficoTrendChart() {
