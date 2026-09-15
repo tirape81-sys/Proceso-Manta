@@ -2,7 +2,11 @@ const LOGO_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAW4AAACKCAMAAAC93lCdAAAAkFBMVEX8Hx/
 
 localStorage.removeItem('balzar_app_data');
 // Global State
-let appData = { aries: [], calidad: [], contramuestra: [], antimicotico: [], antimicotico_ingresos: [] };
+let appData = { aries: [], calidad: [], contramuestra: [], antimicotico: [], antimicotico_ingresos: [], seguimiento_fotografico: [] };
+let excelSyncParsedData = null;
+let currentSyncMode = 'recepciones';
+let lastLoadedSyncWorkbook = null;
+let flatpickrFotoInstance = null;
 let appWorkbook = null; // Store workbook object globally
 let activeTab = 'dashboard';
 let charts = {};
@@ -102,12 +106,13 @@ async function tryAutoLoadExcel() {
     
     try {
         // Carga simultánea y ultra rápida en paralelo
-        const [resRecep, resCalid, resCm, resAnti, resIngr] = await Promise.all([
+        const [resRecep, resCalid, resCm, resAnti, resIngr, resFoto] = await Promise.all([
             fetch(`${SUPABASE_URL}/rest/v1/recepciones?select=*&order=fechaentra.desc`, { headers: SUPABASE_HEADERS }),
             fetch(`${SUPABASE_URL}/rest/v1/calidad?select=*&order=fechaentra.desc`, { headers: SUPABASE_HEADERS }),
             fetch(`${SUPABASE_URL}/rest/v1/contramuestras?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS }),
             fetch(`${SUPABASE_URL}/rest/v1/antimicotico?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS }),
-            fetch(`${SUPABASE_URL}/rest/v1/antimicotico_ingresos?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS })
+            fetch(`${SUPABASE_URL}/rest/v1/antimicotico_ingresos?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS }),
+            fetch(`${SUPABASE_URL}/rest/v1/seguimiento_fotografico?select=*&order=fecha.desc`, { headers: SUPABASE_HEADERS }).catch(e => ({ ok: false }))
         ]);
 
         if (!resRecep.ok || !resCalid.ok || !resCm.ok) {
@@ -121,6 +126,16 @@ async function tryAutoLoadExcel() {
             resAnti.json(),
             resIngr.json()
         ]);
+
+        if (resFoto && resFoto.ok) {
+            try {
+                appData.seguimiento_fotografico = await resFoto.json();
+            } catch(e) {
+                appData.seguimiento_fotografico = [];
+            }
+        } else {
+            appData.seguimiento_fotografico = [];
+        }
 
         // 1. Mapear recepciones (Aries)
         appData.aries = dataRecep.map(r => {
@@ -206,7 +221,12 @@ async function tryAutoLoadExcel() {
             renderHistoryTable(dateFilter || null);
         } else if (activeTab === 'antimicotico') {
             renderAntimicoticoHistoryTable();
+        } else if (activeTab === 'fotografico') {
+            initializeFotograficoControls();
+            renderFotograficoTrendChart();
+            renderFotograficoTable();
         }
+        updateFotograficoKPIs();
 
         const uploadScreen = document.getElementById('file-upload-screen');
         if (uploadScreen) uploadScreen.classList.add('hidden');
@@ -513,6 +533,13 @@ function switchTab(tab) {
     } else if (tab === 'antimicotico') {
         initializeAntimicoticoControls();
         renderAntimicoticoHistoryTable();
+    } else if (tab === 'fotografico') {
+        initializeFotograficoControls();
+        renderFotograficoTrendChart();
+        renderFotograficoTable();
+        setTimeout(() => {
+            if (charts.fotoTrend) charts.fotoTrend.resize();
+        }, 100);
     }
 }
 
@@ -1146,17 +1173,24 @@ function renderVolumeChart(selectedMonth) {
 function renderStatusChart(selectedMonth) {
     if (charts.status) charts.status.destroy();
 
-    const statusCounts = {};
+    let aceptadosCount = 0;
+    let rechazadosCount = 0;
+
     appData.calidad.forEach(row => {
-        const dateStr = formatDateReadable(row.FECHA || row.FECHACREACION);
+        const dateStr = formatDateReadable(row.FECHAENTRA || row.FECHA || row.FECHACREACION);
         if (selectedMonth !== 'all' && dateStr && dateStr !== '-' && !dateStr.startsWith(selectedMonth)) return;
 
-        const conf = row.CONFIRMA || 'Sin estado';
-        statusCounts[conf] = (statusCounts[conf] || 0) + 1;
+        const conf = String(row.CONFIRMA || '').trim().toUpperCase();
+        if (conf.startsWith('ACEPTAD')) {
+            aceptadosCount++;
+        } else if (conf.startsWith('RECHAZA')) {
+            rechazadosCount++;
+        }
     });
 
-    const labels = Object.keys(statusCounts);
-    const counts = Object.values(statusCounts);
+    const labels = ['Aceptados', 'Rechazados'];
+    const counts = [aceptadosCount, rechazadosCount];
+    const colors = ['#10B981', '#EF4444']; // Verde Aceptados, Rojo Rechazados
 
     const ctx = document.getElementById('statusChart').getContext('2d');
     charts.status = new Chart(ctx, {
@@ -1165,11 +1199,7 @@ function renderStatusChart(selectedMonth) {
             labels: labels,
             datasets: [{
                 data: counts,
-                backgroundColor: [
-                    'rgba(16, 185, 129, 0.7)',
-                    'rgba(239, 68, 68, 0.7)',
-                    'rgba(245, 158, 11, 0.7)'
-                ],
+                backgroundColor: colors,
                 borderColor: '#ffffff',
                 borderWidth: 2
             }]
@@ -1180,7 +1210,20 @@ function renderStatusChart(selectedMonth) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { color: '#374151', font: { family: 'Outfit' } }
+                    labels: { 
+                        color: '#374151', 
+                        font: { family: 'Outfit', weight: '600' } 
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = aceptadosCount + rechazadosCount;
+                            const val = context.raw || 0;
+                            const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                            return ` ${context.label}: ${val} (${pct}%)`;
+                        }
+                    }
                 }
             }
         }
@@ -2793,8 +2836,29 @@ function updateControlsMatrixTable(selectedMonth) {
     const elHallazgosTotales = document.getElementById('ctrl-hallazgos-totales');
     const elHallazgosCerrados = document.getElementById('ctrl-hallazgos-cerrados');
 
-    const fotoCompras = elFotoCompras ? parseInt(elFotoCompras.value, 10) || 0 : 50;
-    const fotoTransf = elFotoTransf ? parseInt(elFotoTransf.value, 10) || 0 : 42;
+    let fotoCompras = 0;
+    let fotoTransf = 0;
+    let hasStoredFotos = false;
+
+    if (appData.seguimiento_fotografico && appData.seguimiento_fotografico.length > 0) {
+        appData.seguimiento_fotografico.forEach(r => {
+            const d = formatDateReadable(r.fecha || r.FECHA);
+            if (d === '-') return;
+            if (selectedMonth === 'all' || d.startsWith(selectedMonth)) {
+                fotoCompras += parseInt(r.fotos_compras || 0, 10);
+                fotoTransf += parseInt(r.fotos_transf || 0, 10);
+                hasStoredFotos = true;
+            }
+        });
+    }
+
+    if (!hasStoredFotos) {
+        fotoCompras = elFotoCompras ? parseInt(elFotoCompras.value, 10) || 0 : 50;
+        fotoTransf = elFotoTransf ? parseInt(elFotoTransf.value, 10) || 0 : 42;
+    } else {
+        if (elFotoCompras) elFotoCompras.value = fotoCompras;
+        if (elFotoTransf) elFotoTransf.value = fotoTransf;
+    }
     const anulados = rejectedCount;
     const hallazgosTotales = elHallazgosTotales ? parseInt(elHallazgosTotales.value, 10) || 0 : 3;
     const hallazgosCerrados = elHallazgosCerrados ? parseInt(elHallazgosCerrados.value, 10) || 0 : 2;
@@ -2944,8 +3008,29 @@ function exportDashboardControlsReport() {
     const elHallazgosTotales = document.getElementById('ctrl-hallazgos-totales');
     const elHallazgosCerrados = document.getElementById('ctrl-hallazgos-cerrados');
 
-    const fotoCompras = elFotoCompras ? parseInt(elFotoCompras.value, 10) || 0 : 50;
-    const fotoTransf = elFotoTransf ? parseInt(elFotoTransf.value, 10) || 0 : 42;
+    let fotoCompras = 0;
+    let fotoTransf = 0;
+    let hasStoredFotos = false;
+
+    if (appData.seguimiento_fotografico && appData.seguimiento_fotografico.length > 0) {
+        appData.seguimiento_fotografico.forEach(r => {
+            const d = formatDateReadable(r.fecha || r.FECHA);
+            if (d === '-') return;
+            if (selectedMonth === 'all' || d.startsWith(selectedMonth)) {
+                fotoCompras += parseInt(r.fotos_compras || 0, 10);
+                fotoTransf += parseInt(r.fotos_transf || 0, 10);
+                hasStoredFotos = true;
+            }
+        });
+    }
+
+    if (!hasStoredFotos) {
+        fotoCompras = elFotoCompras ? parseInt(elFotoCompras.value, 10) || 0 : 50;
+        fotoTransf = elFotoTransf ? parseInt(elFotoTransf.value, 10) || 0 : 42;
+    } else {
+        if (elFotoCompras) elFotoCompras.value = fotoCompras;
+        if (elFotoTransf) elFotoTransf.value = fotoTransf;
+    }
     const anulados = rejectedCount;
     const hallazgosTotales = elHallazgosTotales ? parseInt(elHallazgosTotales.value, 10) || 0 : 3;
     const hallazgosCerrados = elHallazgosCerrados ? parseInt(elHallazgosCerrados.value, 10) || 0 : 2;
@@ -3202,4 +3287,800 @@ function exportDashboardControlsReport() {
     };
     
     html2pdf().set(opt).from(htmlContent).save();
+}
+
+
+// ==============================================================================
+// MÓDULO DE SEGUIMIENTO FOTOGRÁFICO (COMPRAS Y TRANSFERENCIAS)
+// ==============================================================================
+
+function initializeFotograficoControls() {
+    // 1. Obtener todas las fechas con camiones registrados en Aries
+    const datesWithTrucks = new Set();
+    appData.aries.forEach(row => {
+        const d = formatDateReadable(row.FECHAENTRA);
+        if (d && d !== '-') datesWithTrucks.add(d);
+    });
+
+    const enabledDates = Array.from(datesWithTrucks).sort((a, b) => new Date(b) - new Date(a));
+    const dateInput = document.getElementById('foto-fecha');
+    if (!dateInput) return;
+
+    if (flatpickrFotoInstance) {
+        flatpickrFotoInstance.destroy();
+    }
+
+    const defaultDate = enabledDates[0] ? new Date(enabledDates[0] + 'T12:00:00') : new Date();
+
+    flatpickrFotoInstance = flatpickr("#foto-fecha", {
+        dateFormat: "Y-m-d",
+        defaultDate: defaultDate,
+        enable: enabledDates.length > 0 ? enabledDates.map(d => new Date(d + 'T12:00:00')) : undefined,
+        locale: {
+            firstDayOfWeek: 1,
+            weekdays: {
+                shorthand: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+                longhand: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+            },
+            months: {
+                shorthand: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+                longhand: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+            }
+        },
+        onChange: function(selectedDates, dateStr) {
+            onFotograficoDateChange(dateStr);
+        }
+    });
+
+    // Vincular inputs numéricos a recálculo en tiempo real
+    document.querySelectorAll('.foto-calc-input').forEach(input => {
+        input.oninput = updateFotograficoDayCalculations;
+    });
+
+    // Cargar fecha por defecto
+    const initialDateStr = enabledDates[0] || new Date().toISOString().split('T')[0];
+    onFotograficoDateChange(initialDateStr);
+
+    populateFotograficoMonthFilter();
+}
+
+function populateFotograficoMonthFilter() {
+    const select = document.getElementById('foto-history-month');
+    if (!select) return;
+
+    const monthsSet = new Set();
+    if (appData.seguimiento_fotografico) {
+        appData.seguimiento_fotografico.forEach(r => {
+            const d = formatDateReadable(r.fecha || r.FECHA);
+            if (d && d !== '-') monthsSet.add(d.substring(0, 7));
+        });
+    }
+    appData.aries.forEach(r => {
+        const d = formatDateReadable(r.FECHAENTRA);
+        if (d && d !== '-') monthsSet.add(d.substring(0, 7));
+    });
+
+    const sortedMonths = Array.from(monthsSet).sort().reverse();
+    const currentVal = select.value || 'all';
+
+    select.innerHTML = '<option value="all">Todos los Meses</option>';
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+    sortedMonths.forEach(m => {
+        const parts = m.split('-');
+        const name = `${monthNames[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = name;
+        select.appendChild(opt);
+    });
+
+    select.value = currentVal;
+}
+
+function onFotograficoDateChange(dateStr) {
+    if (!dateStr) return;
+
+    // Calcular camiones de Compras (pesoartic === 1) y Transferencias (pesoartic !== 1) de ese día
+    let comprasTrucks = 0;
+    let transfTrucks = 0;
+
+    appData.aries.forEach(row => {
+        if (formatDateReadable(row.FECHAENTRA) === dateStr) {
+            const pesoArtic = Number(row.PESOARTIC);
+            if (pesoArtic === 1) {
+                comprasTrucks++;
+            } else {
+                transfTrucks++;
+            }
+        }
+    });
+
+    const elTotalCompras = document.getElementById('foto-total-compras');
+    const elTotalTransf = document.getElementById('foto-total-transf');
+    if (elTotalCompras) elTotalCompras.value = comprasTrucks;
+    if (elTotalTransf) elTotalTransf.value = transfTrucks;
+
+    // Buscar si ya existe un registro guardado para este día
+    const existing = (appData.seguimiento_fotografico || []).find(r => formatDateReadable(r.fecha || r.FECHA) === dateStr);
+    const badge = document.getElementById('foto-status-badge');
+
+    if (existing) {
+        document.getElementById('foto-count-compras').value = existing.fotos_compras || 0;
+        document.getElementById('foto-count-transf').value = existing.fotos_transf || 0;
+        if (existing.responsable) document.getElementById('foto-responsable').value = existing.responsable;
+        document.getElementById('foto-obs').value = existing.observacion || '';
+        
+        if (badge) {
+            badge.innerText = 'Registrado en Supabase';
+            badge.style.background = '#dcfce7';
+            badge.style.color = '#15803d';
+        }
+    } else {
+        document.getElementById('foto-count-compras').value = 0;
+        document.getElementById('foto-count-transf').value = 0;
+        document.getElementById('foto-obs').value = '';
+        
+        if (badge) {
+            badge.innerText = 'Nuevo Registro';
+            badge.style.background = '#e2e8f0';
+            badge.style.color = '#475569';
+        }
+    }
+
+    updateFotograficoDayCalculations();
+}
+
+function updateFotograficoDayCalculations() {
+    const totalCompras = parseInt(document.getElementById('foto-total-compras').value, 10) || 0;
+    const fotosCompras = parseInt(document.getElementById('foto-count-compras').value, 10) || 0;
+    const totalTransf = parseInt(document.getElementById('foto-total-transf').value, 10) || 0;
+    const fotosTransf = parseInt(document.getElementById('foto-count-transf').value, 10) || 0;
+
+    const pctCompras = totalCompras > 0 ? (fotosCompras / totalCompras) * 100 : 0;
+    const pctTransf = totalTransf > 0 ? (fotosTransf / totalTransf) * 100 : 0;
+
+    const badgeCompras = document.getElementById('foto-badge-compras');
+    if (badgeCompras) {
+        badgeCompras.innerText = `${pctCompras.toFixed(1)}% ${pctCompras >= 40 ? '✓ Cumple' : '✗ No Cumple'}`;
+        badgeCompras.style.background = pctCompras >= 40 ? '#dcfce7' : '#fee2e2';
+        badgeCompras.style.color = pctCompras >= 40 ? '#15803d' : '#b91c1c';
+        if (totalCompras === 0) {
+            badgeCompras.innerText = 'Sin Camiones';
+            badgeCompras.style.background = '#f1f5f9';
+            badgeCompras.style.color = '#64748b';
+        }
+    }
+
+    const badgeTransf = document.getElementById('foto-badge-transf');
+    if (badgeTransf) {
+        badgeTransf.innerText = `${pctTransf.toFixed(1)}% ${pctTransf >= 40 ? '✓ Cumple' : '✗ No Cumple'}`;
+        badgeTransf.style.background = pctTransf >= 40 ? '#dcfce7' : '#fee2e2';
+        badgeTransf.style.color = pctTransf >= 40 ? '#15803d' : '#b91c1c';
+        if (totalTransf === 0) {
+            badgeTransf.innerText = 'Sin Camiones';
+            badgeTransf.style.background = '#f1f5f9';
+            badgeTransf.style.color = '#64748b';
+        }
+    }
+}
+
+function saveSeguimientoFotografico() {
+    const dateStr = document.getElementById('foto-fecha').value;
+    if (!dateStr) {
+        showToast('Seleccione una fecha de operación válida.', 'warning');
+        return;
+    }
+
+    const totalCompras = parseInt(document.getElementById('foto-total-compras').value, 10) || 0;
+    const fotosCompras = parseInt(document.getElementById('foto-count-compras').value, 10) || 0;
+    const totalTransf = parseInt(document.getElementById('foto-total-transf').value, 10) || 0;
+    const fotosTransf = parseInt(document.getElementById('foto-count-transf').value, 10) || 0;
+
+    const pctCompras = totalCompras > 0 ? (fotosCompras / totalCompras) * 100 : 0;
+    const pctTransf = totalTransf > 0 ? (fotosTransf / totalTransf) * 100 : 0;
+
+    const responsable = document.getElementById('foto-responsable').value.trim() || 'Karen Quijije';
+    const observacion = document.getElementById('foto-obs').value.trim();
+
+    const payload = {
+        fecha: dateStr,
+        compras_total: totalCompras,
+        fotos_compras: fotosCompras,
+        pct_compras: Number(pctCompras.toFixed(2)),
+        transf_total: totalTransf,
+        fotos_transf: fotosTransf,
+        pct_transf: Number(pctTransf.toFixed(2)),
+        responsable: responsable,
+        observacion: observacion
+    };
+
+    const loader = document.getElementById('sync-loader');
+    if (loader) {
+        document.getElementById('sync-loader-title').innerText = 'Guardando Seguimiento Fotográfico...';
+        document.getElementById('sync-loader-msg').innerText = 'Sincronizando con Supabase en la nube.';
+        loader.classList.add('active');
+    }
+
+    fetch(`${SUPABASE_URL}/rest/v1/seguimiento_fotografico`, {
+        method: 'POST',
+        headers: {
+            ...SUPABASE_HEADERS,
+            'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(async res => {
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            throw new Error(errJson.message || `Error HTTP ${res.status}`);
+        }
+        if (loader) loader.classList.remove('active');
+        showToast('Seguimiento fotográfico guardado con éxito en Supabase', 'success');
+
+        // Actualizar datos locales de inmediato
+        const existingIdx = (appData.seguimiento_fotografico || []).findIndex(r => formatDateReadable(r.fecha || r.FECHA) === dateStr);
+        if (existingIdx !== -1) {
+            appData.seguimiento_fotografico[existingIdx] = payload;
+        } else {
+            appData.seguimiento_fotografico.unshift(payload);
+        }
+
+        updateFotograficoKPIs();
+        renderFotograficoTrendChart();
+        renderFotograficoTable();
+        updateControlsMatrixTable();
+    })
+    .catch(err => {
+        if (loader) loader.classList.remove('active');
+        console.error("Error al guardar seguimiento fotográfico:", err);
+        showToast('Error al guardar en Supabase: ' + err.message, 'danger');
+    });
+}
+
+function updateFotograficoKPIs() {
+    const list = appData.seguimiento_fotografico || [];
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    let mesFotosCompras = 0;
+    let mesTotalCompras = 0;
+    let mesFotosTransf = 0;
+    let mesTotalTransf = 0;
+    let diasCount = 0;
+
+    list.forEach(r => {
+        const d = formatDateReadable(r.fecha || r.FECHA);
+        if (d && d.startsWith(currentMonth)) {
+            mesFotosCompras += parseInt(r.fotos_compras || 0, 10);
+            mesTotalCompras += parseInt(r.compras_total || 0, 10);
+            mesFotosTransf += parseInt(r.fotos_transf || 0, 10);
+            mesTotalTransf += parseInt(r.transf_total || 0, 10);
+            diasCount++;
+        }
+    });
+
+    const pctCompras = mesTotalCompras > 0 ? (mesFotosCompras / mesTotalCompras) * 100 : 0;
+    const pctTransf = mesTotalTransf > 0 ? (mesFotosTransf / mesTotalTransf) * 100 : 0;
+
+    const elValCompras = document.getElementById('kpi-foto-compras-mes');
+    const elSubCompras = document.getElementById('kpi-foto-compras-sub');
+    if (elValCompras) elValCompras.innerText = `${mesFotosCompras} / ${mesTotalCompras}`;
+    if (elSubCompras) elSubCompras.innerText = `${pctCompras.toFixed(1)}% cumplimiento (${pctCompras >= 40 ? 'Cumple' : 'Bajo meta'})`;
+
+    const elValTransf = document.getElementById('kpi-foto-transf-mes');
+    const elSubTransf = document.getElementById('kpi-foto-transf-sub');
+    if (elValTransf) elValTransf.innerText = `${mesFotosTransf} / ${mesTotalTransf}`;
+    if (elSubTransf) elSubTransf.innerText = `${pctTransf.toFixed(1)}% cumplimiento (${pctTransf >= 40 ? 'Cumple' : 'Bajo meta'})`;
+
+    const elDias = document.getElementById('kpi-foto-dias-reg');
+    if (elDias) elDias.innerText = list.length;
+}
+
+function renderFotograficoTrendChart() {
+    const canvas = document.getElementById('fotograficoTrendChart');
+    if (!canvas) return;
+
+    if (charts.fotoTrend) charts.fotoTrend.destroy();
+
+    const list = [...(appData.seguimiento_fotografico || [])].sort((a, b) => {
+        const da = new Date(a.fecha || a.FECHA);
+        const db = new Date(b.fecha || b.FECHA);
+        return da - db;
+    });
+
+    if (list.length === 0) {
+        const ctx = canvas.getContext('2d');
+        charts.fotoTrend = new Chart(ctx, {
+            type: 'line',
+            data: { labels: ['Sin datos'], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: { display: true, text: 'No hay registros de fotos para graficar' }
+                }
+            }
+        });
+        return;
+    }
+
+    const labels = list.map(r => formatDateReadable(r.fecha || r.FECHA));
+    const dataCompras = list.map(r => parseFloat(r.pct_compras || 0));
+    const dataTransf = list.map(r => parseFloat(r.pct_transf || 0));
+    const targetLine = list.map(() => 40); // Meta 40%
+
+    const ctx = canvas.getContext('2d');
+    charts.fotoTrend = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '% Cumplimiento Compras',
+                    data: dataCompras,
+                    borderColor: '#10B981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 2.5,
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#10B981'
+                },
+                {
+                    label: '% Cumplimiento Transferencias',
+                    data: dataTransf,
+                    borderColor: '#0284c7',
+                    backgroundColor: 'rgba(2, 132, 199, 0.1)',
+                    borderWidth: 2.5,
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#0284c7'
+                },
+                {
+                    label: 'Meta Mínima (40%)',
+                    data: targetLine,
+                    borderColor: '#EF4444',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    fill: false,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        callback: val => `${val}%`,
+                        color: '#64748b'
+                    },
+                    grid: { color: 'rgba(226, 232, 240, 0.6)' }
+                },
+                x: {
+                    ticks: { color: '#64748b', maxRotation: 45, minRotation: 45 },
+                    grid: { display: false }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { font: { family: 'Outfit', weight: '600' }, color: '#374151' }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}%`
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderFotograficoTable() {
+    const tbody = document.getElementById('fotografico-table-body');
+    if (!tbody) return;
+
+    const select = document.getElementById('foto-history-month');
+    const selectedMonth = select ? select.value : 'all';
+
+    let list = [...(appData.seguimiento_fotografico || [])];
+    if (selectedMonth !== 'all') {
+        list = list.filter(r => {
+            const d = formatDateReadable(r.fecha || r.FECHA);
+            return d && d.startsWith(selectedMonth);
+        });
+    }
+
+    list.sort((a, b) => new Date(b.fecha || b.FECHA) - new Date(a.fecha || a.FECHA));
+
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">No hay registros fotográficos para el período seleccionado.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    list.forEach(r => {
+        const fecha = formatDateReadable(r.fecha || r.FECHA);
+        const comprasFotos = r.fotos_compras || 0;
+        const comprasTotal = r.compras_total || 0;
+        const pctCompras = parseFloat(r.pct_compras || 0);
+
+        const transfFotos = r.fotos_transf || 0;
+        const transfTotal = r.transf_total || 0;
+        const pctTransf = parseFloat(r.pct_transf || 0);
+
+        const cumpleCompras = comprasTotal === 0 || pctCompras >= 40;
+        const cumpleTransf = transfTotal === 0 || pctTransf >= 40;
+        const cumpleGlobal = cumpleCompras && cumpleTransf;
+
+        const badgeGlobal = cumpleGlobal 
+            ? '<span style="background: #dcfce7; color: #15803d; padding: 3px 10px; border-radius: 12px; font-weight: 700; font-size: 0.75rem;">CUMPLE</span>'
+            : '<span style="background: #fee2e2; color: #b91c1c; padding: 3px 10px; border-radius: 12px; font-weight: 700; font-size: 0.75rem;">NO CUMPLE</span>';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight: 600;">${fecha}</td>
+            <td><strong>${comprasFotos}</strong> / ${comprasTotal} camiones</td>
+            <td><span style="color: ${pctCompras >= 40 ? '#10B981' : '#EF4444'}; font-weight: 700;">${pctCompras.toFixed(1)}%</span></td>
+            <td><strong>${transfFotos}</strong> / ${transfTotal} camiones</td>
+            <td><span style="color: ${pctTransf >= 40 ? '#10B981' : '#EF4444'}; font-weight: 700;">${pctTransf.toFixed(1)}%</span></td>
+            <td>${badgeGlobal}</td>
+            <td>${r.responsable || 'Karen Quijije'}</td>
+            <td style="color: var(--text-muted); font-size: 0.8rem;">${r.observacion || '-'}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function exportFotograficoReport() {
+    showToast('Generando reporte de seguimiento fotográfico...', 'info');
+    window.print();
+}
+
+// ==============================================================================
+// CARGADOR Y SINCRONIZADOR DE EXCEL DIARIO CON SUPABASE
+// ==============================================================================
+
+function openExcelSyncModal(mode = 'recepciones') {
+    const modal = document.getElementById('excel-sync-modal');
+    if (!modal) return;
+
+    modal.style.display = 'flex';
+    const previewBox = document.getElementById('sync-preview-box');
+    if (previewBox) previewBox.style.display = 'none';
+    const pContainer = document.getElementById('sync-progress-bar-container');
+    if (pContainer) pContainer.style.display = 'none';
+    const btnSync = document.getElementById('btn-execute-sync');
+    if (btnSync) btnSync.style.display = 'none';
+    const input = document.getElementById('sync-file-input');
+    if (input) input.value = '';
+    excelSyncParsedData = null;
+    lastLoadedSyncWorkbook = null;
+
+    setSyncMode(mode || 'recepciones');
+}
+
+function setSyncMode(mode) {
+    currentSyncMode = mode || 'recepciones';
+    const isRecep = (currentSyncMode === 'recepciones');
+
+    // Actualizar Encabezado del Modal
+    const title = document.getElementById('sync-modal-title');
+    const icon = document.getElementById('sync-modal-icon');
+    const titleText = document.getElementById('sync-modal-title-text');
+    if (title) title.style.color = isRecep ? '#EF4444' : '#0284c7';
+    if (icon) icon.className = isRecep ? 'fa-solid fa-truck' : 'fa-solid fa-vial';
+    if (titleText) titleText.innerText = isRecep ? 'Actualizar Tabla: Recepciones' : 'Actualizar Tabla: Calidad';
+
+    // Actualizar Botones de Pestaña de Modo
+    const btnRecep = document.getElementById('btn-mode-recep');
+    const btnCalid = document.getElementById('btn-mode-calid');
+    if (btnRecep) {
+        btnRecep.style.background = isRecep ? '#EF4444' : 'transparent';
+        btnRecep.style.color = isRecep ? '#ffffff' : '#64748b';
+    }
+    if (btnCalid) {
+        btnCalid.style.background = isRecep ? 'transparent' : '#0284c7';
+        btnCalid.style.color = isRecep ? '#64748b' : '#ffffff';
+    }
+
+    // Actualizar Texto Explicativo
+    const desc = document.getElementById('sync-modal-desc');
+    if (desc) {
+        desc.style.borderLeft = isRecep ? '4px solid #EF4444' : '4px solid #0284c7';
+        desc.innerHTML = isRecep
+            ? 'Suba el archivo de <strong>Recepciones / Aries</strong>. El sistema extraerá los boletos de pesaje y los guardará directamente en la tabla <strong style="color: #EF4444;">recepciones</strong> de Supabase.'
+            : 'Suba el archivo de <strong>Calidad / Laboratorio</strong>. El sistema extraerá los análisis y los guardará directamente en la tabla <strong style="color: #0284c7;">calidad</strong> de Supabase.';
+    }
+
+    // Actualizar Zona DropZone
+    const dropZone = document.getElementById('sync-drop-zone');
+    const dropIcon = document.getElementById('sync-drop-icon');
+    const dropText = document.getElementById('sync-drop-text');
+    if (dropZone) {
+        dropZone.style.border = isRecep ? '2px dashed #EF4444' : '2px dashed #0284c7';
+        dropZone.style.background = isRecep ? 'rgba(239, 68, 68, 0.03)' : 'rgba(2, 132, 199, 0.03)';
+    }
+    if (dropIcon) dropIcon.style.color = isRecep ? '#EF4444' : '#0284c7';
+    if (dropText) dropText.innerText = isRecep ? 'Arrastre aquí el archivo Excel de Recepciones' : 'Arrastre aquí el archivo Excel de Calidad';
+
+    // Actualizar Botón de Ejecutar
+    const btnSync = document.getElementById('btn-execute-sync');
+    const btnSyncText = document.getElementById('btn-execute-sync-text');
+    if (btnSync) btnSync.style.background = isRecep ? '#EF4444' : '#0284c7';
+    if (btnSyncText) btnSyncText.innerText = isRecep ? 'Guardar en Tabla Recepciones' : 'Guardar en Tabla Calidad';
+
+    // Barra de Progreso
+    const pFill = document.getElementById('sync-progress-fill');
+    if (pFill) pFill.style.background = isRecep ? '#EF4444' : '#0284c7';
+
+    // Si ya teníamos un archivo cargado en memoria, reprocesarlo con el nuevo modo seleccionado
+    if (lastLoadedSyncWorkbook) {
+        processExcelSyncWorkbook(lastLoadedSyncWorkbook.workbook, lastLoadedSyncWorkbook.fileName);
+    }
+}
+
+function closeExcelSyncModal() {
+    const modal = document.getElementById('excel-sync-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function closeExcelSyncModalOnOuterClick(e) {
+    if (e.target && e.target.id === 'excel-sync-modal') {
+        closeExcelSyncModal();
+    }
+}
+
+function handleSyncFileSelect(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+            lastLoadedSyncWorkbook = { workbook, fileName: file.name };
+            processExcelSyncWorkbook(workbook, file.name);
+        } catch(err) {
+            console.error(err);
+            showToast('Error al leer el archivo Excel: ' + err.message, 'danger');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function processExcelSyncWorkbook(workbook, fileName) {
+    const isRecep = (currentSyncMode === 'recepciones');
+
+    if (isRecep) {
+        // Buscar hoja de recepciones
+        let ariesSheet = workbook.Sheets['Ingreso Manta'] || workbook.Sheets['Ingreso Balzar'] || workbook.Sheets['Aries'];
+        if (!ariesSheet) {
+            const sheetNames = workbook.SheetNames || [];
+            const matchedName = sheetNames.find(n => /ingreso|aries|recepcion/i.test(n));
+            if (matchedName) ariesSheet = workbook.Sheets[matchedName];
+            else if (sheetNames.length === 1) ariesSheet = workbook.Sheets[sheetNames[0]];
+        }
+
+        if (!ariesSheet) {
+            showToast('No se encontró la hoja de Recepciones ("Ingreso Manta", "Ingreso Balzar" o "Aries") en el archivo.', 'warning');
+            return;
+        }
+
+        const rawAries = XLSX.utils.sheet_to_json(ariesSheet, { defval: null });
+        const recepcionesPayload = [];
+
+        rawAries.forEach(r => {
+            const ticket = r.TICKETPESO || r.ticketpeso || r['TICKET No.'] || r['Ticket'] || r['TICKET'];
+            if (!ticket) return;
+
+            const fEntra = r.FECHAENTRA instanceof Date ? r.FECHAENTRA.toISOString().split('T')[0] : (r.FECHAENTRA ? String(r.FECHAENTRA).substring(0, 10) : null);
+            const fSale = r.FECHASALE instanceof Date ? r.FECHASALE.toISOString().split('T')[0] : (r.FECHASALE ? String(r.FECHASALE).substring(0, 10) : null);
+
+            recepcionesPayload.push({
+                ticketpeso: Number(ticket),
+                fechaentra: fEntra,
+                horaentra: r.HORAENTRA ? String(r.HORAENTRA).substring(0, 20) : null,
+                fechasale: fSale,
+                horasale: r.HORASALE ? String(r.HORASALE).substring(0, 20) : null,
+                tituloa: r.TITULOA || null,
+                nombrep: r.NOMBREP || null,
+                pesobruto: r.PESOBRUTO !== null ? Number(r.PESOBRUTO) : null,
+                tara: r.TARA !== null ? Number(r.TARA) : null,
+                pesokilos: r.PESOKILOS !== null ? Number(r.PESOKILOS) : null,
+                humedadrmp: r.HUMEDADRMP !== null ? Number(r.HUMEDADRMP) : null,
+                impurezrmp: r.IMPUREZRMP !== null ? Number(r.IMPUREZRMP) : null,
+                hum_real_i: r.HUM_REAL_I !== null ? Number(r.HUM_REAL_I) : null,
+                placast: r.PLACAST ? String(r.PLACAST).substring(0, 20) : null,
+                guiat: r.GUIAT ? String(r.GUIAT).substring(0, 50) : null,
+                nrecepcion: r.NRECEPCION ? Number(r.NRECEPCION) : null,
+                pesoartic: r.PESOARTIC !== null ? Number(r.PESOARTIC) : null,
+                rechaza_ps: r.RECHAZA_PS ? String(r.RECHAZA_PS).substring(0, 10) : null,
+                idsilos: r.IDSILOS ? String(r.IDSILOS).substring(0, 50) : null,
+                centro_sap: r.CENTRO_SAP ? String(r.CENTRO_SAP).substring(0, 50) : null
+            });
+        });
+
+        if (recepcionesPayload.length === 0) {
+            showToast('El archivo no contiene boletos válidos con ticket de pesaje.', 'warning');
+            return;
+        }
+
+        excelSyncParsedData = {
+            mode: 'recepciones',
+            data: recepcionesPayload,
+            fileName: fileName
+        };
+
+        const fnEl = document.getElementById('sync-filename');
+        if (fnEl) fnEl.innerText = fileName;
+        const lblEl = document.getElementById('sync-preview-label');
+        if (lblEl) lblEl.innerText = 'Boletos de Recepción detectados:';
+        const countEl = document.getElementById('sync-preview-count');
+        if (countEl) {
+            countEl.innerText = `${recepcionesPayload.length} boletos`;
+            countEl.style.color = '#EF4444';
+        }
+        const statusEl = document.getElementById('sync-status-msg');
+        if (statusEl) statusEl.innerHTML = 'Listo para guardar en la tabla <strong style="color: #EF4444;">recepciones</strong> de Supabase.';
+        document.getElementById('sync-preview-box').style.display = 'flex';
+        document.getElementById('btn-execute-sync').style.display = 'inline-block';
+
+    } else {
+        // Buscar hoja de calidad
+        let calidadSheet = workbook.Sheets['Calidad'] || workbook.Sheets['Base de Calidad'] || workbook.Sheets['Base Calidad'];
+        if (!calidadSheet) {
+            const sheetNames = workbook.SheetNames || [];
+            const matchedName = sheetNames.find(n => /calidad|laboratorio/i.test(n));
+            if (matchedName) calidadSheet = workbook.Sheets[matchedName];
+            else if (sheetNames.length === 1) calidadSheet = workbook.Sheets[sheetNames[0]];
+        }
+
+        if (!calidadSheet) {
+            showToast('No se encontró la hoja de Calidad ("Calidad" o "Base de Calidad") en el archivo.', 'warning');
+            return;
+        }
+
+        const rawCalidad = XLSX.utils.sheet_to_json(calidadSheet, { defval: null });
+        const calidadPayload = [];
+
+        rawCalidad.forEach(r => {
+            const ticket = r.TICKETPESO || r.ticketpeso || r['TICKET No.'] || r['Ticket'] || r['TICKET'];
+            if (!ticket) return;
+
+            const fEntra = r.FECHAENTRA instanceof Date ? r.FECHAENTRA.toISOString().split('T')[0] : (r.FECHAENTRA ? String(r.FECHAENTRA).substring(0, 10) : null);
+
+            calidadPayload.push({
+                ticketpeso: Number(ticket),
+                centro_ope: r.CENTRO_OPE || null,
+                fechaentra: fEntra,
+                horaentra: r.HORAENTRA ? String(r.HORAENTRA).substring(0, 20) : null,
+                nom_artic: r.NOM_ARTIC || null,
+                nombrep: r.NOMBREP || null,
+                placa_vehi: r.PLACA_VEHI ? String(r.PLACA_VEHI).substring(0, 20) : null,
+                kg_neto: r.KG_NETO !== null ? Number(r.KG_NETO) : null,
+                humedad: r.HUMEDAD !== null ? Number(r.HUMEDAD) : null,
+                impureza: r.IMPUREZA !== null ? Number(r.IMPUREZA) : null,
+                imp_real: r.IMP_REAL !== null ? Number(r.IMP_REAL) : null,
+                partidos: r.PARTIDOS !== null ? Number(r.PARTIDOS) : null,
+                insectos: r.INSECTOS !== null ? Number(r.INSECTOS) : null,
+                calor: r.CALOR !== null ? Number(r.CALOR) : null,
+                hongos: r.HONGOS !== null ? Number(r.HONGOS) : null,
+                podridos: r.PODRIDOS !== null ? Number(r.PODRIDOS) : null,
+                densidad: r.DENSIDAD !== null ? Number(r.DENSIDAD) : null,
+                muestra_1: r.MUESTRA_1 !== null ? Number(r.MUESTRA_1) : null,
+                muestra_2: r.MUESTRA_2 !== null ? Number(r.MUESTRA_2) : null,
+                muestra_3: r.MUESTRA_3 !== null ? Number(r.MUESTRA_3) : null,
+                idsilos: r.IDSILOS ? String(r.IDSILOS).substring(0, 50) : null,
+                inspector: r.INSPECTOR || null,
+                confirma: r.CONFIRMA || null
+            });
+        });
+
+        if (calidadPayload.length === 0) {
+            showToast('El archivo no contiene filas válidas de análisis de calidad (TICKETPESO).', 'warning');
+            return;
+        }
+
+        excelSyncParsedData = {
+            mode: 'calidad',
+            data: calidadPayload,
+            fileName: fileName
+        };
+
+        const fnEl = document.getElementById('sync-filename');
+        if (fnEl) fnEl.innerText = fileName;
+        const lblEl = document.getElementById('sync-preview-label');
+        if (lblEl) lblEl.innerText = 'Análisis de Calidad detectados:';
+        const countEl = document.getElementById('sync-preview-count');
+        if (countEl) {
+            countEl.innerText = `${calidadPayload.length} análisis`;
+            countEl.style.color = '#0284c7';
+        }
+        const statusEl = document.getElementById('sync-status-msg');
+        if (statusEl) statusEl.innerHTML = 'Listo para guardar en la tabla <strong style="color: #0284c7;">calidad</strong> de Supabase.';
+        document.getElementById('sync-preview-box').style.display = 'flex';
+        document.getElementById('btn-execute-sync').style.display = 'inline-block';
+    }
+}
+
+async function executeExcelSyncToSupabase() {
+    if (!excelSyncParsedData || !excelSyncParsedData.data || excelSyncParsedData.data.length === 0) {
+        showToast('No hay datos cargados para sincronizar.', 'warning');
+        return;
+    }
+
+    const mode = excelSyncParsedData.mode || currentSyncMode;
+    const isRecep = (mode === 'recepciones');
+    const endpoint = isRecep ? `${SUPABASE_URL}/rest/v1/recepciones` : `${SUPABASE_URL}/rest/v1/calidad`;
+    const tableName = isRecep ? 'recepciones' : 'calidad';
+    const items = excelSyncParsedData.data;
+
+    const btn = document.getElementById('btn-execute-sync');
+    if (btn) btn.disabled = true;
+
+    const pContainer = document.getElementById('sync-progress-bar-container');
+    const pFill = document.getElementById('sync-progress-fill');
+    const pPct = document.getElementById('sync-progress-pct');
+    const pLabel = document.getElementById('sync-progress-label');
+
+    pContainer.style.display = 'flex';
+    pFill.style.width = '10%';
+    pFill.style.background = isRecep ? '#EF4444' : '#0284c7';
+    pPct.innerText = '10%';
+    pLabel.innerText = `Preparando ${items.length} registros para tabla ${tableName}...`;
+
+    try {
+        const CHUNK_SIZE = 100;
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+            const chunk = items.slice(i, i + CHUNK_SIZE);
+            pLabel.innerText = `Guardando en ${tableName} (${Math.min(i + chunk.length, items.length)} de ${items.length})...`;
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    ...SUPABASE_HEADERS,
+                    'Prefer': 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify(chunk)
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Error en Supabase (${tableName}): ${res.status} ${errText || res.statusText}`);
+            }
+
+            const progress = 10 + Math.round(((i + chunk.length) / items.length) * 88);
+            pFill.style.width = `${progress}%`;
+            pPct.innerText = `${progress}%`;
+        }
+
+        pFill.style.width = '100%';
+        pPct.innerText = '100%';
+        pLabel.innerText = '¡Sincronización completada exitosamente!';
+
+        const successMsg = isRecep 
+            ? `¡Se sincronizaron con éxito ${items.length} recepciones en Supabase!`
+            : `¡Se sincronizaron con éxito ${items.length} análisis de calidad en Supabase!`;
+        showToast(successMsg, 'success');
+
+        setTimeout(() => {
+            closeExcelSyncModal();
+            tryAutoLoadExcel();
+        }, 1200);
+
+    } catch(err) {
+        console.error("Error en sincronización con Supabase:", err);
+        pLabel.innerText = 'Error al sincronizar: ' + err.message;
+        pFill.style.background = '#DC2626';
+        showToast('Error al sincronizar: ' + err.message, 'danger');
+        if (btn) btn.disabled = false;
+    }
 }

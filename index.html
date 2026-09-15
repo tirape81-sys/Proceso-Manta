@@ -6,7 +6,7 @@
     <title>Planta Manta - Control de Calidad</title>
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="app.css?v=3.4">
+    <link rel="stylesheet" href="app.css?v=3.6">
     
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -122,6 +122,21 @@
                     Consumo Antimicótico
                     <span>Registro diario de bines y consumo</span>
                 </button>
+                <button class="btn-landing" style="background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); color: white; border: none;" onclick="showAppView('fotografico')">
+                    <i class="fa-solid fa-camera-retro"></i>
+                    Seguimiento Fotográfico
+                    <span>Fotos en compras y transferencias</span>
+                </button>
+                <button class="btn-landing" style="background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; border: none;" onclick="openExcelSyncModal('recepciones')">
+                    <i class="fa-solid fa-truck"></i>
+                    Actualizar Recepciones
+                    <span>Cargar Excel a tabla Recepciones (Aries)</span>
+                </button>
+                <button class="btn-landing" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; border: none;" onclick="openExcelSyncModal('calidad')">
+                    <i class="fa-solid fa-vial"></i>
+                    Actualizar Calidad
+                    <span>Cargar Excel a tabla Calidad</span>
+                </button>
             </div>
         </div>
     </div>
@@ -150,6 +165,18 @@
                 </button>
                 <button id="nav-btn-antimicotico" class="nav-btn" onclick="switchTab('antimicotico')">
                     <i class="fa-solid fa-droplet"></i> Consumo Antimicótico
+                </button>
+                <button id="nav-btn-fotografico" class="nav-btn" onclick="switchTab('fotografico')">
+                    <i class="fa-solid fa-camera-retro"></i> Seg. Fotográfico
+                </button>
+            </div>
+
+            <div style="padding: 0 12px; margin-top: auto; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;">
+                <button class="btn-action" style="width: 100%; height: 34px; background: #EF4444; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25);" onclick="openExcelSyncModal('recepciones')">
+                    <i class="fa-solid fa-truck"></i> Act. Recepciones
+                </button>
+                <button class="btn-action" style="width: 100%; height: 34px; background: #0284c7; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);" onclick="openExcelSyncModal('calidad')">
+                    <i class="fa-solid fa-vial"></i> Act. Calidad
                 </button>
             </div>
 
@@ -667,6 +694,170 @@
                 </div>
             </section>
 
+            <!-- TAB 5: SEGUIMIENTO FOTOGRÁFICO VIEW -->
+            <section id="fotografico-view" class="view-section">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+                    <div>
+                        <h1>Seguimiento Fotográfico</h1>
+                        <p>Control y registro diario de evidencia fotográfica en Compras y Transferencias de Maíz.</p>
+                    </div>
+                </div>
+
+                <!-- Resumen KPIs del Mes -->
+                <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 24px;">
+                    <div class="kpi-card">
+                        <div class="kpi-title">FOTOS COMPRAS (MES)</div>
+                        <div class="kpi-value" id="kpi-foto-compras-mes">0</div>
+                        <div class="kpi-subtext" id="kpi-foto-compras-sub">0% cumplimiento</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">FOTOS TRANSFERENCIAS (MES)</div>
+                        <div class="kpi-value" id="kpi-foto-transf-mes">0</div>
+                        <div class="kpi-subtext" id="kpi-foto-transf-sub">0% cumplimiento</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">ESTÁNDAR DE CUMPLIMIENTO</div>
+                        <div class="kpi-value" style="color: #10B981;">≥ 40%</div>
+                        <div class="kpi-subtext">Meta de Calidad Pronaca</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">DÍAS REGISTRADOS</div>
+                        <div class="kpi-value" id="kpi-foto-dias-reg">0</div>
+                        <div class="kpi-subtext">Registros en Supabase</div>
+                    </div>
+                </div>
+
+                <!-- Formulario de Registro y Gráfico de Tendencia -->
+                <div style="display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px; margin-bottom: 24px;" class="form-charts-grid">
+                    
+                    <!-- Panel Formulario de Registro Diario -->
+                    <div class="card" style="padding: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-camera" style="color: #8B5CF6;"></i> Registro Diario de Fotos
+                            </h3>
+                            <span id="foto-status-badge" style="font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 12px; background: #e2e8f0; color: #475569;">Nuevo Registro</span>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <!-- Selector de Fecha -->
+                            <div class="input-group" style="margin: 0;">
+                                <label for="foto-fecha" style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);">Fecha de Operación:</label>
+                                <input type="text" id="foto-fecha" placeholder="Seleccionar fecha..." style="width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 14px; font-family: inherit; font-size: 0.9rem;" readonly>
+                            </div>
+
+                            <!-- Sección Compras -->
+                            <div style="background: rgba(16, 185, 129, 0.04); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h4 style="margin: 0; font-size: 0.9rem; font-weight: 700; color: #10B981; display: flex; align-items: center; gap: 6px;">
+                                        <i class="fa-solid fa-cart-shopping"></i> Compras de Maíz
+                                    </h4>
+                                    <span id="foto-badge-compras" style="font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 12px; background: #e2e8f0; color: #475569;">0%</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                    <div class="input-group" style="margin: 0;">
+                                        <label for="foto-total-compras" style="font-size: 0.75rem; color: var(--text-muted);">Camiones Recibidos:</label>
+                                        <input type="number" id="foto-total-compras" class="foto-calc-input" min="0" value="0" style="width: 100%; height: 38px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px; font-size: 0.85rem; background: var(--bg-main);" readonly>
+                                    </div>
+                                    <div class="input-group" style="margin: 0;">
+                                        <label for="foto-count-compras" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Fotos Realizadas:</label>
+                                        <input type="number" id="foto-count-compras" class="foto-calc-input" min="0" value="0" style="width: 100%; height: 38px; border-radius: 6px; border: 1px solid #10B981; padding: 0 12px; font-size: 0.9rem; font-weight: 700; color: var(--text-main);">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Sección Transferencias -->
+                            <div style="background: rgba(2, 132, 199, 0.04); border: 1px solid rgba(2, 132, 199, 0.2); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h4 style="margin: 0; font-size: 0.9rem; font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 6px;">
+                                        <i class="fa-solid fa-truck-fast"></i> Transferencias / Despachos
+                                    </h4>
+                                    <span id="foto-badge-transf" style="font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 12px; background: #e2e8f0; color: #475569;">0%</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                    <div class="input-group" style="margin: 0;">
+                                        <label for="foto-total-transf" style="font-size: 0.75rem; color: var(--text-muted);">Camiones Transferencias:</label>
+                                        <input type="number" id="foto-total-transf" class="foto-calc-input" min="0" value="0" style="width: 100%; height: 38px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px; font-size: 0.85rem; background: var(--bg-main);" readonly>
+                                    </div>
+                                    <div class="input-group" style="margin: 0;">
+                                        <label for="foto-count-transf" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Fotos Realizadas:</label>
+                                        <input type="number" id="foto-count-transf" class="foto-calc-input" min="0" value="0" style="width: 100%; height: 38px; border-radius: 6px; border: 1px solid #0284c7; padding: 0 12px; font-size: 0.9rem; font-weight: 700; color: var(--text-main);">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Responsable y Observaciones -->
+                            <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+                                <div class="input-group" style="margin: 0;">
+                                    <label for="foto-responsable" style="font-size: 0.75rem; color: var(--text-muted);">Responsable:</label>
+                                    <input type="text" id="foto-responsable" value="Karen Quijije" style="width: 100%; height: 38px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px; font-size: 0.85rem;">
+                                </div>
+                                <div class="input-group" style="margin: 0;">
+                                    <label for="foto-obs" style="font-size: 0.75rem; color: var(--text-muted);">Observación / Novedad:</label>
+                                    <textarea id="foto-obs" placeholder="Observaciones sobre toma de fotos o calidad..." style="width: 100%; height: 48px; border-radius: 6px; border: 1px solid var(--border-color); padding: 8px 12px; font-size: 0.85rem; resize: none;"></textarea>
+                                </div>
+                            </div>
+
+                            <button id="btn-save-foto" class="btn-action" style="width: 100%; height: 44px; background: #10B981; color: white; border: none; font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);" onclick="saveSeguimientoFotografico()">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> Guardar Registro Diario
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Panel Gráfico de Tendencia de Cumplimiento -->
+                    <div class="card" style="padding: 24px; display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-chart-line" style="color: #0284c7;"></i> Tendencia de Cumplimiento Fotográfico
+                            </h3>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                Meta: <span style="font-weight: 700; color: #10B981;">≥ 40%</span>
+                            </div>
+                        </div>
+                        <div style="position: relative; flex-grow: 1; min-height: 320px;">
+                            <canvas id="fotograficoTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla Histórica de Seguimientos Fotográficos -->
+                <div class="card" style="padding: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-clock-rotate-left" style="color: var(--text-muted);"></i> Historial de Seguimiento Fotográfico
+                        </h3>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label for="foto-history-month" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">Mes:</label>
+                            <select id="foto-history-month" onchange="renderFotograficoTable()" style="height: 36px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px; font-size: 0.85rem; background: var(--bg-card); color: var(--text-main);">
+                                <option value="all">Todos los Meses</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Compras (Fotos / Total)</th>
+                                    <th>% Cumpl. Compras</th>
+                                    <th>Transferencias (Fotos / Total)</th>
+                                    <th>% Cumpl. Transf.</th>
+                                    <th>Estado General</th>
+                                    <th>Responsable</th>
+                                    <th>Observación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fotografico-table-body">
+                                <tr>
+                                    <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">No hay registros fotográficos guardados aún.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
         </main>
     </div>
 
@@ -742,6 +933,75 @@
         </div>
     </div>
 
+    <!-- Modal de Carga y Sincronización de Excel Diario -->
+    <div id="excel-sync-modal" class="modal-overlay" style="display: none;" onclick="closeExcelSyncModalOnOuterClick(event)">
+        <div class="modal-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3 id="sync-modal-title" style="display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.2rem; color: #EF4444;">
+                    <i id="sync-modal-icon" class="fa-solid fa-truck"></i> <span id="sync-modal-title-text">Actualizar Tabla: Recepciones</span>
+                </h3>
+                <button class="modal-close-btn" onclick="closeExcelSyncModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; padding-top: 14px;">
+                
+                <!-- Selector de Tabla Destino (Rojo Recepciones / Azul Calidad) -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f1f5f9; padding: 4px; border-radius: 8px;">
+                    <button id="btn-mode-recep" type="button" onclick="setSyncMode('recepciones')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: #EF4444; color: white; transition: var(--transition);">
+                        <i class="fa-solid fa-truck"></i> 1. Recepciones (Rojo)
+                    </button>
+                    <button id="btn-mode-calid" type="button" onclick="setSyncMode('calidad')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: transparent; color: #64748b; transition: var(--transition);">
+                        <i class="fa-solid fa-vial"></i> 2. Calidad (Azul)
+                    </button>
+                </div>
+
+                <div id="sync-modal-desc" style="font-size: 0.82rem; color: var(--text-muted); background: #f8fafc; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #EF4444;">
+                    Suba el archivo de <strong>Recepciones / Aries</strong>. El sistema extraerá los boletos de pesaje y los guardará directamente en la tabla <strong>recepciones</strong> de Supabase.
+                </div>
+
+                <!-- Zona de Arrastre DropZone -->
+                <div id="sync-drop-zone" class="upload-zone" style="border: 2px dashed #EF4444; background: rgba(239, 68, 68, 0.03); padding: 24px 20px; text-align: center; border-radius: 10px; cursor: pointer;" onclick="document.getElementById('sync-file-input').click()">
+                    <i id="sync-drop-icon" class="fa-solid fa-cloud-arrow-up" style="font-size: 2.2rem; color: #EF4444; margin-bottom: 8px;"></i>
+                    <p id="sync-drop-text" style="font-weight: 600; color: var(--text-main); margin: 0 0 4px 0;">Arrastre aquí el archivo Excel de Recepciones</p>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">o haga clic para buscar el archivo en su equipo</span>
+                    <input type="file" id="sync-file-input" accept=".xlsx,.xls" style="display: none;" onchange="handleSyncFileSelect(event)">
+                </div>
+
+                <!-- Resumen de Filas Detectadas -->
+                <div id="sync-preview-box" style="display: none; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; flex-direction: column; gap: 10px;">
+                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-circle-check" style="color: #10B981;"></i> Archivo leído con éxito: <span id="sync-filename" style="color: #0284c7;"></span>
+                    </div>
+                    <div style="background: white; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 14px;">
+                        <div id="sync-preview-label" style="color: var(--text-muted); font-size: 0.8rem;">Registros detectados:</div>
+                        <div id="sync-preview-count" style="font-size: 1.3rem; font-weight: 700; color: #EF4444;">0</div>
+                    </div>
+                    <div id="sync-status-msg" style="font-size: 0.8rem; color: var(--text-muted);">
+                        Listo para actualizar la tabla en Supabase.
+                    </div>
+                </div>
+
+                <!-- Barra de Progreso -->
+                <div id="sync-progress-bar-container" style="display: none; flex-direction: column; gap: 6px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600;">
+                        <span id="sync-progress-label">Sincronizando...</span>
+                        <span id="sync-progress-pct">0%</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                        <div id="sync-progress-fill" style="width: 0%; height: 100%; background: #EF4444; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+
+                <!-- Botones de Acción -->
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;">
+                    <button class="btn-action" style="background: #e2e8f0; color: #475569;" onclick="closeExcelSyncModal()">Cancelar</button>
+                    <button id="btn-execute-sync" class="btn-action" style="background: #EF4444; color: white; display: none; font-weight: 700;" onclick="executeExcelSyncToSupabase()">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> <span id="btn-execute-sync-text">Guardar en Tabla Recepciones</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Toast -->
     <div id="toast" style="display: none; position: fixed; bottom: 24px; right: 24px; background: rgba(17, 24, 39, 0.9); border: 1px solid var(--border-color); backdrop-filter: var(--glass-blur); padding: 16px 24px; border-radius: 8px; z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.5); align-items: center; gap: 12px; color: var(--text-white); font-family: var(--font-heading); transition: var(--transition);">
         <i id="toast-icon" class="fa-solid fa-circle-check"></i>
@@ -749,6 +1009,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=3.4"></script>
+    <script src="app.js?v=3.6"></script>
 </body>
 </html>
