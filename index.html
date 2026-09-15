@@ -104,48 +104,55 @@
 </head>
 <body>
 
-    <!-- PANTALLA DE LOGIN DE SEGURIDAD (ACCESO PROTEGIDO) -->
-    <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f8fafc; display: flex; align-items: center; justify-content: center; z-index: 999999; font-family: inherit;">
-        <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center; border: 1px solid #e2e8f0;">
-            <img src="Logo.png" alt="Logo" style="height: 48px; margin-bottom: 20px; object-fit: contain;">
-            <h2 style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin: 0 0 8px 0;">Acceso Protegido</h2>
-            <p style="font-size: 0.85rem; color: #64748b; margin: 0 0 24px 0;">Ingrese la contraseña de seguridad para acceder al sistema.</p>
-            <div style="display: flex; flex-direction: column; gap: 16px; text-align: left;">
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <label for="login-pass" style="font-weight: 500; font-size: 0.85rem; color: #64748b;">Contraseña:</label>
-                    <input type="password" id="login-pass" placeholder="••••••••" style="width: 100%; height: 42px; border-radius: 6px; border: 1px solid #cbd5e1; padding: 0 16px; font-size: 1rem; box-sizing: border-box;" onkeydown="if(event.key === 'Enter') checkLoginPassword()">
+    <!-- PANTALLA DE LOGIN Y GESTIÓN DE SESIÓN -->
+    <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0F172A; display: flex; align-items: center; justify-content: center; z-index: 999999; font-family: inherit;">
+        <div style="background: white; padding: 36px 32px; border-radius: 16px; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); width: 100%; max-width: 420px; text-align: center; border: 1px solid #e2e8f0; position: relative;">
+            <img src="Logo.png" alt="Logo" style="height: 46px; margin-bottom: 14px; object-fit: contain;">
+            <h2 style="font-size: 1.45rem; font-weight: 800; color: #0f172a; margin: 0 0 6px 0;">Control de Calidad</h2>
+            <p style="font-size: 0.82rem; color: #64748b; margin: 0 0 20px 0;">Ingrese sus credenciales corporativas para acceder a su centro de trabajo.</p>
+            
+            <form id="login-form" onsubmit="event.preventDefault(); submitLogin();" style="display: flex; flex-direction: column; gap: 14px; text-align: left;">
+                <div>
+                    <label for="login-username" style="font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; margin-bottom: 5px; display: block;">
+                        <i class="fa-solid fa-user"></i> Usuario:
+                    </label>
+                    <input type="text" id="login-username" placeholder="ej: admin, operador_manta" required style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 14px; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;" autocomplete="username">
                 </div>
-                <button id="btn-login" onclick="checkLoginPassword()" style="width: 100%; height: 44px; font-weight: 600; background: #10B981; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 0.95rem; transition: background 0.2s;">Ingresar</button>
-                <p id="login-error" style="color: #ef4444; font-size: 0.8rem; margin: 0; display: none; text-align: center; font-weight: 500;">Contraseña incorrecta. Inténtelo nuevamente.</p>
-            </div>
+                <div>
+                    <label for="login-password" style="font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; margin-bottom: 5px; display: block;">
+                        <i class="fa-solid fa-lock"></i> Contraseña:
+                    </label>
+                    <input type="password" id="login-password" placeholder="••••••••" required style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 14px; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;" autocomplete="current-password">
+                </div>
+                
+                <button type="submit" id="btn-login-submit" style="width: 100%; height: 44px; font-weight: 700; background: linear-gradient(135deg, #10B981 0%, #059669 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.95rem; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Iniciar Sesión
+                </button>
+                
+                <div id="login-error" style="color: #ef4444; font-size: 0.8rem; margin-top: 4px; display: none; text-align: center; font-weight: 600; background: #fef2f2; padding: 8px 12px; border-radius: 6px; border: 1px solid #fecaca;">
+                    Usuario o contraseña incorrectos.
+                </div>
+
+                <!-- Accesos rápidos para desarrollo / pruebas -->
+                <div style="margin-top: 10px; padding-top: 14px; border-top: 1px dashed #e2e8f0; text-align: center;">
+                    <span style="font-size: 0.72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">
+                        Accesos Rápidos de Prueba:
+                    </span>
+                    <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
+                        <button type="button" onclick="fillQuickLogin('admin', 'admin123')" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; color: #334155; cursor: pointer;">
+                            👑 Admin
+                        </button>
+                        <button type="button" onclick="fillQuickLogin('operador_manta', 'manta123')" style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; color: #047857; cursor: pointer;">
+                            📍 Manta
+                        </button>
+                        <button type="button" onclick="fillQuickLogin('operador_balzar', 'balzar123')" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; color: #1d4ed8; cursor: pointer;">
+                            📍 Balzar
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
-    <script>
-        // Verificación de acceso inmediata e inmune a caché
-        window.checkLoginPassword = function() {
-            var passInput = document.getElementById('login-pass');
-            var pass = passInput ? passInput.value.trim() : '';
-            if (pass === "Calidad2026") {
-                try {
-                    sessionStorage.setItem('isCalidadAuthorized', 'true');
-                } catch(e) {
-                    console.warn('sessionStorage no disponible:', e);
-                }
-                var overlay = document.getElementById('login-overlay');
-                if (overlay) overlay.style.display = 'none';
-            } else {
-                var err = document.getElementById('login-error');
-                if (err) err.style.display = 'block';
-                if (passInput) passInput.value = '';
-            }
-        };
-        try {
-            if (sessionStorage.getItem('isCalidadAuthorized') === 'true') {
-                var overlay = document.getElementById('login-overlay');
-                if (overlay) overlay.style.display = 'none';
-            }
-        } catch(e) {}
-    </script>
 
     <!-- 0. PANTALLA DE CARGA DE ARCHIVO (UPLOAD SCREEN) -->
     <div id="file-upload-screen" class="upload-screen hidden">
@@ -198,6 +205,14 @@
                             <option value="BALZAR">📍 Planta Balzar</option>
                             <option value="TODAS">🌐 Consolidado (Ambas)</option>
                         </select>
+                    </div>
+                    <div id="landing-user-badge" style="display: inline-flex; align-items: center; gap: 8px; background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 10px; padding: 4px 12px;">
+                        <i class="fa-solid fa-user-circle" style="font-size: 1.15rem; color: #475569;"></i>
+                        <span id="landing-user-name" style="font-size: 0.82rem; font-weight: 700; color: #1E293B;">admin</span>
+                        <span id="landing-user-role" style="font-size: 0.68rem; font-weight: 800; background: #10B981; color: white; padding: 2px 6px; border-radius: 4px;">ADMIN</span>
+                        <button type="button" onclick="logoutUser()" title="Cerrar Sesión" style="background: transparent; border: none; color: #EF4444; cursor: pointer; padding: 2px 4px; font-size: 0.85rem; display: flex; align-items: center;" onmouseover="this.style.color='#B91C1C'" onmouseout="this.style.color='#EF4444'">
+                            <i class="fa-solid fa-power-off"></i>
+                        </button>
                     </div>
                     <div class="landing-brand-badge" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; background: rgba(16, 185, 129, 0.1); color: #059669; border-radius: 20px; font-size: 0.8rem; font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.2);">
                         <span class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10B981; display: inline-block; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);"></span>
@@ -308,6 +323,21 @@
                         <span style="font-size: 0.7rem; font-weight: 700; color: #4338CA; background: #EEF2FF; padding: 2px 8px; border-radius: 4px; display: inline-block;">Importador Masivo</span>
                     </div>
                 </div>
+
+                <!-- 7. Módulo Gestión de Usuarios (Exclusivo Administrador) -->
+                <div id="landing-module-usuarios" class="module-card" style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px; padding: 20px; display: none; align-items: flex-start; gap: 16px; text-align: left; cursor: pointer; transition: all 0.22s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.03); position: relative; overflow: hidden; border-left: 4px solid #0F172A;" onclick="showAppView('usuarios')">
+                    <div class="module-icon-box" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0; background: rgba(15, 23, 42, 0.1); color: #0F172A;">
+                        <i class="fa-solid fa-users-gear"></i>
+                    </div>
+                    <div class="module-info" style="flex: 1; min-width: 0;">
+                        <div class="module-title" style="font-size: 1rem; font-weight: 700; color: #0F172A; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>Gestión de Usuarios</span>
+                            <i class="fa-solid fa-arrow-right" style="font-size: 0.8rem; color: #0F172A;"></i>
+                        </div>
+                        <p class="module-desc" style="font-size: 0.8rem; color: #64748B; line-height: 1.4; margin: 0 0 10px 0;">Creación de cuentas, asignación de roles y segmentación Manta / Balzar.</p>
+                        <span style="font-size: 0.7rem; font-weight: 700; color: #0F172A; background: #E2E8F0; padding: 2px 8px; border-radius: 4px; display: inline-block;">Acceso Administrador</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Barra de Actualización Rápida de Base de Datos -->
@@ -346,7 +376,7 @@
             </div>
 
             <!-- Selector de Planta Global en Sidebar -->
-            <div class="sidebar-planta-box" style="padding: 10px 14px; margin: 0 12px 14px 12px; background: rgba(255, 255, 255, 0.06); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12);">
+            <div class="sidebar-planta-box" style="padding: 10px 14px; margin: 0 12px 10px 12px; background: rgba(255, 255, 255, 0.06); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12);">
                 <label for="global-planta-select" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94A3B8; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-weight: 700;">
                     <i class="fa-solid fa-building"></i> Centro Activo:
                 </label>
@@ -355,6 +385,20 @@
                     <option value="BALZAR">📍 Planta Balzar</option>
                     <option value="TODAS">🌐 Consolidado (Ambas)</option>
                 </select>
+            </div>
+
+            <!-- Perfil de Usuario en Sidebar -->
+            <div id="sidebar-user-box" style="padding: 8px 12px; margin: 0 12px 14px 12px; background: rgba(255, 255, 255, 0.04); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <i class="fa-solid fa-circle-user" style="font-size: 1.2rem; color: #94A3B8;"></i>
+                    <div style="min-width: 0; text-align: left;">
+                        <div id="sidebar-user-name" style="font-size: 0.78rem; font-weight: 700; color: #F8FAFC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">admin</div>
+                        <span id="sidebar-user-role" style="font-size: 0.65rem; font-weight: 800; color: #10B981;">ADMIN</span>
+                    </div>
+                </div>
+                <button type="button" onclick="logoutUser()" title="Cerrar Sesión" style="background: transparent; border: none; color: #EF4444; cursor: pointer; padding: 4px; font-size: 0.85rem;" onmouseover="this.style.color='#F87171'" onmouseout="this.style.color='#EF4444'">
+                    <i class="fa-solid fa-power-off"></i>
+                </button>
             </div>
             
             <div class="sidebar-menu">
@@ -375,6 +419,9 @@
                 </button>
                 <button id="nav-btn-sync" class="nav-btn" onclick="switchTab('sync')">
                     <i class="fa-solid fa-cloud-arrow-up"></i> Cargar Excel
+                </button>
+                <button id="nav-btn-usuarios" class="nav-btn" onclick="switchTab('usuarios')" style="display: none;">
+                    <i class="fa-solid fa-users-gear"></i> Gestión Usuarios
                 </button>
             </div>
 
@@ -1306,7 +1353,142 @@
                 </div>
             </section>
 
+            <!-- TAB 7: GESTIÓN DE USUARIOS (ADMINISTRADOR) -->
+            <section id="usuarios-view" class="view-section">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+                    <div>
+                        <h1 style="display: flex; align-items: center; gap: 10px; margin: 0 0 6px 0;">
+                            <i class="fa-solid fa-users-gear" style="color: #0F172A;"></i> Gestión de Usuarios y Accesos
+                        </h1>
+                        <p style="margin: 0; color: var(--text-muted);">Administración de cuentas, perfiles de rol y segmentación estricta por centro operativo (Manta / Balzar).</p>
+                    </div>
+                    <div>
+                        <button type="button" class="btn-action" onclick="openCreateUserModal()" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border: none; padding: 10px 22px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);">
+                            <i class="fa-solid fa-user-plus"></i> Crear Nuevo Usuario
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtros y Estadísticas de Usuarios -->
+                <div class="card" style="padding: 16px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; flex: 1; min-width: 280px;">
+                        <div style="position: relative; flex: 1; min-width: 220px;">
+                            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94A3B8; font-size: 0.85rem;"></i>
+                            <input type="text" id="user-search-input" placeholder="Buscar por nombre o usuario..." oninput="filterUsersTable()" style="width: 100%; height: 38px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px 0 34px; font-size: 0.85rem; font-family: inherit; outline: none; box-sizing: border-box;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <label for="user-filter-planta" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted);">Centro:</label>
+                            <select id="user-filter-planta" onchange="filterUsersTable()" style="height: 38px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px; font-size: 0.85rem; font-family: inherit; outline: none; background: white; cursor: pointer; font-weight: 600;">
+                                <option value="TODAS">Todos los Centros</option>
+                                <option value="MANTA">📍 Manta</option>
+                                <option value="BALZAR">📍 Balzar</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="users-count-badge" style="font-size: 0.82rem; font-weight: 700; color: #475569; background: #F1F5F9; padding: 6px 14px; border-radius: 20px; border: 1px solid #CBD5E1;">
+                        Total: 3 usuarios
+                    </div>
+                </div>
+
+                <!-- Tabla de Usuarios -->
+                <div class="card" style="padding: 0; overflow: hidden;">
+                    <div class="table-wrapper" style="margin: 0; overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+                            <thead>
+                                <tr style="background: #F8FAFC; border-bottom: 2px solid var(--border-color);">
+                                    <th style="padding: 14px 18px; font-weight: 700; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Usuario</th>
+                                    <th style="padding: 14px 18px; font-weight: 700; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Nombre Completo</th>
+                                    <th style="padding: 14px 18px; font-weight: 700; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Rol Asignado</th>
+                                    <th style="padding: 14px 18px; font-weight: 700; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Centro Permitido</th>
+                                    <th style="padding: 14px 18px; font-weight: 700; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Estado</th>
+                                    <th style="padding: 14px 18px; font-weight: 700; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; text-align: right;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usuarios-table-body">
+                                <!-- Populated dynamically by app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
         </main>
+    </div>
+
+    <!-- MODAL CREACIÓN / EDICIÓN DE USUARIO -->
+    <div id="modal-usuario" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeUserModal()">
+        <div class="modal-card" style="max-width: 500px; width: 92%;">
+            <div class="modal-header">
+                <h3 id="modal-usuario-title" style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-solid fa-user-plus" style="color: #10B981;"></i> Crear Nuevo Usuario
+                </h3>
+                <button class="modal-close-btn" onclick="closeUserModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-usuario" onsubmit="event.preventDefault(); saveUserFromModal();" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                <input type="hidden" id="user-modal-id" value="">
+                
+                <div>
+                    <label for="user-modal-fullname" style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 5px;">
+                        Nombre Completo:
+                    </label>
+                    <input type="text" id="user-modal-fullname" required placeholder="ej: Ing. Roberto Sánchez" style="width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px; font-family: inherit; font-size: 0.9rem; box-sizing: border-box; outline: none;">
+                </div>
+
+                <div>
+                    <label for="user-modal-username" style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 5px;">
+                        Nombre de Usuario (Login):
+                    </label>
+                    <input type="text" id="user-modal-username" required placeholder="ej: rsanchez_balzar" style="width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px; font-family: inherit; font-size: 0.9rem; box-sizing: border-box; outline: none;">
+                </div>
+
+                <div>
+                    <label for="user-modal-password" style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 5px;">
+                        Contraseña:
+                    </label>
+                    <input type="text" id="user-modal-password" required placeholder="Mínimo 4 caracteres" style="width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 12px; font-family: inherit; font-size: 0.9rem; box-sizing: border-box; outline: none;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label for="user-modal-rol" style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 5px;">
+                            Rol en el Sistema:
+                        </label>
+                        <select id="user-modal-rol" onchange="onUserModalRoleChange(this.value)" style="width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 10px; font-family: inherit; font-size: 0.85rem; font-weight: 600; box-sizing: border-box; outline: none; background: white;">
+                            <option value="OPERADOR_MANTA">Operador Planta Manta</option>
+                            <option value="OPERADOR_BALZAR">Operador Planta Balzar</option>
+                            <option value="ADMIN">Administrador General</option>
+                            <option value="AUDITOR">Auditor de Calidad</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="user-modal-planta" style="font-weight: 700; font-size: 0.8rem; color: #475569; display: block; margin-bottom: 5px;">
+                            Centro Permitido:
+                        </label>
+                        <select id="user-modal-planta" style="width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 10px; font-family: inherit; font-size: 0.85rem; font-weight: 600; box-sizing: border-box; outline: none; background: white;">
+                            <option value="MANTA">📍 Solo Manta</option>
+                            <option value="BALZAR">📍 Solo Balzar</option>
+                            <option value="TODAS">🌐 Global (Todas las Plantas)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                    <input type="checkbox" id="user-modal-activo" checked style="width: 18px; height: 18px; accent-color: #10B981; cursor: pointer;">
+                    <label for="user-modal-activo" style="font-size: 0.85rem; font-weight: 600; color: #1E293B; cursor: pointer;">
+                        Usuario Activo (puede iniciar sesión)
+                    </label>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <button type="button" onclick="closeUserModal()" class="btn-action" style="background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; padding: 8px 18px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn-action" style="background: #10B981; color: white; border: none; padding: 8px 22px; border-radius: 6px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">
+                        Guardar Usuario
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
 
@@ -1487,6 +1669,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=5.4"></script>
+    <script src="app.js?v=5.7"></script>
 </body>
 </html>
