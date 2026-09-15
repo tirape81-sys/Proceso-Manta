@@ -701,8 +701,36 @@ function renderHistoryTable(dateFilter = null, monthFilter = null) {
         return;
     }
     
+    // Filtrar para que solo se muestren contramuestras de compras recibidas (no rechazadas)
+    const validContramuestras = (appData.contramuestra || []).filter(row => {
+        const ticketNo = Number(row['TICKET No.']);
+        if (!ticketNo) return true;
+        const ariesRow = (appData.aries || []).find(a => Number(a.TICKETPESO) === ticketNo);
+        if (ariesRow) {
+            const isPurchase = Number(ariesRow.PESOARTIC) === 1;
+            const isRejAries = ariesRow.RECHAZA_PS && String(ariesRow.RECHAZA_PS).trim().toUpperCase() === 'S';
+            if (!isPurchase || isRejAries) return false;
+        }
+        const calRecord = (appData.calidad || []).find(c => Number(c.TICKETPESO) === ticketNo);
+        if (calRecord && String(calRecord.CONFIRMA || calRecord.confirma || '').toUpperCase().startsWith('RECHAZA')) {
+            return false;
+        }
+        return true;
+    });
+
+    if (validContramuestras.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">
+                    No hay contramuestras de compras recibidas registradas en el sistema.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
     // Ordenar de más reciente a más antiguo por fecha de registro
-    const sorted = [...appData.contramuestra].sort((a, b) => {
+    const sorted = [...validContramuestras].sort((a, b) => {
         const dateA = new Date(a['FECHA'] || 0);
         const dateB = new Date(b['FECHA'] || 0);
         return dateB - dateA;
@@ -2085,17 +2113,31 @@ function closeDashboardTicketModalOnOuterClick(event) {
 
 // CONTRAMUESTRA REGISTRATION MODULE
 function initializeContramuestraControls() {
-    // Obtener todas las fechas que tienen al menos un boleto con datos de calidad
+    // Obtener todas las fechas que tienen al menos un boleto de compras recibido con datos de calidad
     const datesWithQuality = new Set();
     
     appData.aries.forEach(row => {
         const ticketNo = Number(row.TICKETPESO);
-        const hasQuality = appData.calidad.some(c => Number(c.TICKETPESO) === ticketNo);
-        if (hasQuality) {
-            const dateStr = formatDateReadable(row.FECHAENTRA);
-            if (dateStr && dateStr !== '-') {
-                datesWithQuality.add(dateStr);
-            }
+        
+        // 1. Debe ser COMPRA (PESOARTIC === 1)
+        const isPurchase = Number(row.PESOARTIC) === 1;
+        if (!isPurchase) return;
+
+        // 2. Debe ser RECIBIDO (NO rechazado en Aries)
+        const isRechazadoAries = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
+        if (isRechazadoAries) return;
+
+        // 3. Debe tener un registro de análisis en la hoja de Calidad
+        const calRecord = appData.calidad.find(c => Number(c.TICKETPESO) === ticketNo);
+        if (!calRecord) return;
+
+        // 4. No debe estar rechazado en Calidad
+        const isRechazadoCalidad = calRecord && String(calRecord.CONFIRMA || calRecord.confirma || '').toUpperCase().startsWith('RECHAZA');
+        if (isRechazadoCalidad) return;
+
+        const dateStr = formatDateReadable(row.FECHAENTRA);
+        if (dateStr && dateStr !== '-') {
+            datesWithQuality.add(dateStr);
         }
     });
     
@@ -2107,7 +2149,7 @@ function initializeContramuestraControls() {
     
     const dateInput = document.getElementById('sampling-date');
     if (enabledDates.length === 0) {
-        dateInput.placeholder = 'No hay fechas con calidad';
+        dateInput.placeholder = 'No hay fechas con compras recibidas';
         dateInput.disabled = true;
         return;
     }
@@ -2141,7 +2183,7 @@ function initializeContramuestraControls() {
     });
 }
 
-// SELECT ALEATORIO
+// SELECT ALEATORIO DE CONTRAMUESTRAS (SOLO COMPRAS RECIBIDAS)
 function generateRandomSample() {
     const targetDate = document.getElementById('sampling-date').value;
     const pct = parseFloat(document.getElementById('sampling-percentage').value);
@@ -2151,17 +2193,32 @@ function generateRandomSample() {
         return;
     }
 
+    // Filtrar únicamente boletos de COMPRAS y RECIBIDOS (no rechazados) con análisis de calidad
     const dayTickets = appData.aries.filter(row => {
         const isSameDate = formatDateReadable(row.FECHAENTRA) === targetDate;
         if (!isSameDate) return false;
         
-        // El boleto debe tener un registro de análisis en la hoja de Calidad
-        const existsInCalidad = appData.calidad.some(c => Number(c.TICKETPESO) === Number(row.TICKETPESO));
-        return existsInCalidad;
+        // 1. Solo compras (PESOARTIC === 1)
+        const isPurchase = Number(row.PESOARTIC) === 1;
+        if (!isPurchase) return false;
+
+        // 2. Solo boletos RECIBIDOS (NO rechazados en Aries)
+        const isRechazadoAries = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
+        if (isRechazadoAries) return false;
+
+        // 3. Debe tener un registro de análisis en la hoja de Calidad
+        const calRecord = appData.calidad.find(c => Number(c.TICKETPESO) === Number(row.TICKETPESO));
+        if (!calRecord) return false;
+
+        // 4. No debe estar rechazado en Calidad
+        const isRechazadoCalidad = calRecord && String(calRecord.CONFIRMA || calRecord.confirma || '').toUpperCase().startsWith('RECHAZA');
+        if (isRechazadoCalidad) return false;
+
+        return true;
     });
 
     if (dayTickets.length === 0) {
-        showToast('No se encontraron boletos con análisis de calidad en la fecha seleccionada', 'warning');
+        showToast('No se encontraron boletos de compra recibidos con análisis de calidad en la fecha seleccionada', 'warning');
         selectedSampleTickets = [];
         renderContramuestraForm([]);
         document.getElementById('btn-save-excel').disabled = true;
@@ -2180,24 +2237,33 @@ function generateRandomSample() {
     renderContramuestraForm(selectedSampleTickets);
     
     document.getElementById('btn-save-excel').disabled = false;
-    showToast(`Se seleccionó aleatoriamente ${sampleSize} boletos (${Math.round(pct * 100)}% de ${dayTickets.length})`, 'info');
+    showToast(`Se seleccionó aleatoriamente ${sampleSize} boletos de compras recibidos (${Math.round(pct * 100)}% de ${dayTickets.length})`, 'info');
 }
 
 function renderContramuestraForm(tickets) {
     const container = document.getElementById('contramuestra-form-container');
     container.innerHTML = '';
 
-    if (!tickets || tickets.length === 0) {
+    // Filtrar para asegurar que ningún boleto rechazado ni transferencia se renderice
+    const validTickets = (tickets || []).filter(ticket => {
+        const isPurchase = Number(ticket.PESOARTIC) === 1;
+        const isRechazadoAries = ticket.RECHAZA_PS && String(ticket.RECHAZA_PS).trim().toUpperCase() === 'S';
+        const calRecord = appData.calidad.find(c => Number(c.TICKETPESO) === Number(ticket.TICKETPESO));
+        const isRechazadoCal = calRecord && String(calRecord.CONFIRMA || calRecord.confirma || '').toUpperCase().startsWith('RECHAZA');
+        return isPurchase && !isRechazadoAries && !isRechazadoCal;
+    });
+
+    if (!validTickets || validTickets.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
                 <i class="fa-solid fa-vials"></i>
-                <p>Seleccione una fecha y genere una muestra aleatoria para comenzar el registro.</p>
+                <p>Seleccione una fecha y genere una muestra aleatoria de compras recibidas para comenzar el registro.</p>
             </div>
         `;
         return;
     }
 
-    tickets.forEach((ticket, index) => {
+    validTickets.forEach((ticket, index) => {
         const card = document.createElement('div');
         card.className = 'ticket-row-form';
         card.dataset.ticketNo = ticket.TICKETPESO;
