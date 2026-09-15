@@ -3869,53 +3869,63 @@ function updateControlsMatrixTable(selectedMonth) {
         });
     }
 
-    const elFotoCompras = document.getElementById('ctrl-foto-compras');
-    const elFotoTransf = document.getElementById('ctrl-foto-transf');
-    const elHallazgosTotales = document.getElementById('ctrl-hallazgos-totales');
-    const elHallazgosCerrados = document.getElementById('ctrl-hallazgos-cerrados');
+    let mesFotosCompras = 0;
+    let mesTotalCompras = 0;
+    let mesFotosTransf = 0;
+    let mesTotalTransf = 0;
 
-    let fotoCompras = 0;
-    let fotoTransf = 0;
-    let hasStoredFotos = false;
+    const listFotos = appData.seguimiento_fotografico || [];
+    listFotos.forEach(r => {
+        const d = formatDateReadable(r.fecha || r.FECHA);
+        if (d === '-') return;
+        if (selectedMonth === 'all' || d.startsWith(selectedMonth)) {
+            mesFotosCompras += parseInt(r.fotos_compras || 0, 10);
+            mesTotalCompras += parseInt(r.compras_total || 0, 10);
+            mesFotosTransf += parseInt(r.fotos_transf || 0, 10);
+            mesTotalTransf += parseInt(r.transf_total || 0, 10);
+        }
+    });
 
-    if (appData.seguimiento_fotografico && appData.seguimiento_fotografico.length > 0) {
-        appData.seguimiento_fotografico.forEach(r => {
-            const d = formatDateReadable(r.fecha || r.FECHA);
-            if (d === '-') return;
-            if (selectedMonth === 'all' || d.startsWith(selectedMonth)) {
-                fotoCompras += parseInt(r.fotos_compras || 0, 10);
-                fotoTransf += parseInt(r.fotos_transf || 0, 10);
-                hasStoredFotos = true;
-            }
-        });
-    }
+    const elDashValCompras = document.getElementById('dash-foto-compras-val');
+    const elDashValTransf = document.getElementById('dash-foto-transf-val');
 
-    if (!hasStoredFotos) {
-        fotoCompras = elFotoCompras ? parseInt(elFotoCompras.value, 10) || 0 : 50;
-        fotoTransf = elFotoTransf ? parseInt(elFotoTransf.value, 10) || 0 : 42;
+    if (elDashValCompras && elDashValCompras.innerText && elDashValCompras.innerText.includes('/')) {
+        const parts = elDashValCompras.innerText.split('/').map(s => parseInt(s.trim(), 10));
+        if (!isNaN(parts[0]) && !isNaN(parts[1]) && parts[1] > 0) {
+            mesFotosCompras = parts[0];
+            mesTotalCompras = parts[1];
+        }
     } else {
-        if (elFotoCompras) elFotoCompras.value = fotoCompras;
-        if (elFotoTransf) elFotoTransf.value = fotoTransf;
+        if (mesTotalCompras === 0 && purchasesOkCount > 0) {
+            mesTotalCompras = purchasesOkCount;
+        }
     }
-    const anulados = rejectedCount;
-    const hallazgosTotales = elHallazgosTotales ? parseInt(elHallazgosTotales.value, 10) || 0 : 3;
-    const hallazgosCerrados = elHallazgosCerrados ? parseInt(elHallazgosCerrados.value, 10) || 0 : 2;
-    const hallazgosPendientes = Math.max(0, hallazgosTotales - hallazgosCerrados);
 
-    const pctFotoCompras = purchasesOkCount > 0 ? (fotoCompras / purchasesOkCount) * 100 : 0;
-    const pctFotoTransf = transferencesCount > 0 ? (fotoTransf / transferencesCount) * 100 : 0;
+    if (elDashValTransf && elDashValTransf.innerText && elDashValTransf.innerText.includes('/')) {
+        const parts = elDashValTransf.innerText.split('/').map(s => parseInt(s.trim(), 10));
+        if (!isNaN(parts[0]) && !isNaN(parts[1]) && parts[1] > 0) {
+            mesFotosTransf = parts[0];
+            mesTotalTransf = parts[1];
+        }
+    } else {
+        if (mesTotalTransf === 0 && transferencesCount > 0) {
+            mesTotalTransf = transferencesCount;
+        }
+    }
+
+    const anulados = rejectedCount;
+    const pctFotoCompras = mesTotalCompras > 0 ? (mesFotosCompras / mesTotalCompras) * 100 : 0;
+    const pctFotoTransf = mesTotalTransf > 0 ? (mesFotosTransf / mesTotalTransf) * 100 : 0;
     const pctAnulados = purchaseCount > 0 ? (anulados / purchaseCount) * 100 : 0;
     const pctCm = purchasesOkCount > 0 ? (contramuestraCount / purchasesOkCount) * 100 : 0;
-    const pctCierre = hallazgosTotales > 0 ? (hallazgosCerrados / hallazgosTotales) * 100 : 0;
     const antiAdherencia = antiTeoSum > 0 ? (antiRealSum / antiTeoSum) * 100 : 100;
 
     // Calcular Cumplimientos
-    const statusFotoCompras = purchasesOkCount === 0 ? 'SIN DATO' : (pctFotoCompras >= 40 ? 'CUMPLE' : 'NO CUMPLE');
-    const statusFotoTransf = transferencesCount === 0 ? 'SIN DATO' : (pctFotoTransf >= 40 ? 'CUMPLE' : 'NO CUMPLE');
+    const statusFotoCompras = mesTotalCompras === 0 ? 'SIN DATO' : (pctFotoCompras >= 40 ? 'CUMPLE' : 'NO CUMPLE');
+    const statusFotoTransf = mesTotalTransf === 0 ? 'SIN DATO' : (pctFotoTransf >= 40 ? 'CUMPLE' : 'NO CUMPLE');
     const statusAnulados = purchaseCount === 0 ? 'SIN DATO' : 'CUMPLE';
     const statusCm = purchasesOkCount === 0 ? 'SIN DATO' : (pctCm >= 30 ? 'CUMPLE' : 'NO CUMPLE');
     const statusAnti = antiTeoSum === 0 ? 'SIN DATO' : (antiAdherencia >= 90 && antiAdherencia <= 110 ? 'CUMPLE' : 'NO CUMPLE');
-    const statusInterno = hallazgosTotales === 0 ? 'CUMPLE' : (pctCierre === 100 ? 'CUMPLE' : 'ALERTA');
 
     function getPill(status) {
         if (status === 'CUMPLE') return '<span style="display:inline-block; padding:3px 8px; border-radius:4px; font-weight:bold; font-size:0.75rem; text-align:center; background:#10B981; color:white;">CUMPLE</span>';
@@ -3931,7 +3941,7 @@ function updateControlsMatrixTable(selectedMonth) {
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--text-main);"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#E2001A; margin-right:8px; vertical-align:middle;"></span>Control fotográfico de compras</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-muted);">Confirmar el seguimiento del vehículo y la normalidad del proceso de compra.</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-muted);">% compras con evidencia completa</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">${fotoCompras} / ${purchasesOkCount} boletos</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">${mesFotosCompras} / ${mesTotalCompras} boletos</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--text-main);">${pctFotoCompras.toFixed(1)}%</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${getPill(statusFotoCompras)}</td>
             </tr>
@@ -3939,7 +3949,7 @@ function updateControlsMatrixTable(selectedMonth) {
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--text-main);"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#E2001A; margin-right:8px; vertical-align:middle;"></span>Control fotográfico de transferencias</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-muted);">Confirmar el seguimiento del vehículo durante transferencias y detectar novedades.</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-muted);">% transferencias con evidencia completa</td>
-                <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">${fotoTransf} / ${transferencesCount} boletos</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">${mesFotosTransf} / ${mesTotalTransf} boletos</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--text-main);">${pctFotoTransf.toFixed(1)}%</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${getPill(statusFotoTransf)}</td>
             </tr>
@@ -3966,14 +3976,6 @@ function updateControlsMatrixTable(selectedMonth) {
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">${(antiRealSum/1000).toFixed(2)} Tn vs ${(antiTeoSum/1000).toFixed(2)} Tn</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--text-main);">${antiAdherencia.toFixed(1)}%</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${getPill(statusAnti)}</td>
-            </tr>
-            <tr>
-                <td style="padding: 10px; font-weight: bold; color: var(--text-main);"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#E2001A; margin-right:8px; vertical-align:middle;"></span>Visita Control Interno</td>
-                <td style="padding: 10px; color: var(--text-muted);">Documentar resultados de la visita, hallazgos y avance de acciones.</td>
-                <td style="padding: 10px; color: var(--text-muted);">Hallazgos / % cierre</td>
-                <td style="padding: 10px; color: var(--text-main); font-weight: 500;">${hallazgosCerrados} cerrados de ${hallazgosTotales}</td>
-                <td style="padding: 10px; font-weight: bold; color: var(--text-main);">${pctCierre.toFixed(1)}%</td>
-                <td style="padding: 10px;">${getPill(statusInterno)}</td>
             </tr>
         `;
     }
@@ -4041,53 +4043,63 @@ function exportDashboardControlsReport() {
         });
     }
 
-    const elFotoCompras = document.getElementById('ctrl-foto-compras');
-    const elFotoTransf = document.getElementById('ctrl-foto-transf');
-    const elHallazgosTotales = document.getElementById('ctrl-hallazgos-totales');
-    const elHallazgosCerrados = document.getElementById('ctrl-hallazgos-cerrados');
+    let mesFotosCompras = 0;
+    let mesTotalCompras = 0;
+    let mesFotosTransf = 0;
+    let mesTotalTransf = 0;
 
-    let fotoCompras = 0;
-    let fotoTransf = 0;
-    let hasStoredFotos = false;
+    const listFotos = appData.seguimiento_fotografico || [];
+    listFotos.forEach(r => {
+        const d = formatDateReadable(r.fecha || r.FECHA);
+        if (d === '-') return;
+        if (selectedMonth === 'all' || d.startsWith(selectedMonth)) {
+            mesFotosCompras += parseInt(r.fotos_compras || 0, 10);
+            mesTotalCompras += parseInt(r.compras_total || 0, 10);
+            mesFotosTransf += parseInt(r.fotos_transf || 0, 10);
+            mesTotalTransf += parseInt(r.transf_total || 0, 10);
+        }
+    });
 
-    if (appData.seguimiento_fotografico && appData.seguimiento_fotografico.length > 0) {
-        appData.seguimiento_fotografico.forEach(r => {
-            const d = formatDateReadable(r.fecha || r.FECHA);
-            if (d === '-') return;
-            if (selectedMonth === 'all' || d.startsWith(selectedMonth)) {
-                fotoCompras += parseInt(r.fotos_compras || 0, 10);
-                fotoTransf += parseInt(r.fotos_transf || 0, 10);
-                hasStoredFotos = true;
-            }
-        });
-    }
+    const elDashValCompras = document.getElementById('dash-foto-compras-val');
+    const elDashValTransf = document.getElementById('dash-foto-transf-val');
 
-    if (!hasStoredFotos) {
-        fotoCompras = elFotoCompras ? parseInt(elFotoCompras.value, 10) || 0 : 50;
-        fotoTransf = elFotoTransf ? parseInt(elFotoTransf.value, 10) || 0 : 42;
+    if (elDashValCompras && elDashValCompras.innerText && elDashValCompras.innerText.includes('/')) {
+        const parts = elDashValCompras.innerText.split('/').map(s => parseInt(s.trim(), 10));
+        if (!isNaN(parts[0]) && !isNaN(parts[1]) && parts[1] > 0) {
+            mesFotosCompras = parts[0];
+            mesTotalCompras = parts[1];
+        }
     } else {
-        if (elFotoCompras) elFotoCompras.value = fotoCompras;
-        if (elFotoTransf) elFotoTransf.value = fotoTransf;
+        if (mesTotalCompras === 0 && purchasesOkCount > 0) {
+            mesTotalCompras = purchasesOkCount;
+        }
     }
-    const anulados = rejectedCount;
-    const hallazgosTotales = elHallazgosTotales ? parseInt(elHallazgosTotales.value, 10) || 0 : 3;
-    const hallazgosCerrados = elHallazgosCerrados ? parseInt(elHallazgosCerrados.value, 10) || 0 : 2;
-    const hallazgosPendientes = Math.max(0, hallazgosTotales - hallazgosCerrados);
 
-    const pctFotoCompras = purchasesOkCount > 0 ? (fotoCompras / purchasesOkCount) * 100 : 0;
-    const pctFotoTransf = transferencesCount > 0 ? (fotoTransf / transferencesCount) * 100 : 0;
+    if (elDashValTransf && elDashValTransf.innerText && elDashValTransf.innerText.includes('/')) {
+        const parts = elDashValTransf.innerText.split('/').map(s => parseInt(s.trim(), 10));
+        if (!isNaN(parts[0]) && !isNaN(parts[1]) && parts[1] > 0) {
+            mesFotosTransf = parts[0];
+            mesTotalTransf = parts[1];
+        }
+    } else {
+        if (mesTotalTransf === 0 && transferencesCount > 0) {
+            mesTotalTransf = transferencesCount;
+        }
+    }
+
+    const anulados = rejectedCount;
+    const pctFotoCompras = mesTotalCompras > 0 ? (mesFotosCompras / mesTotalCompras) * 100 : 0;
+    const pctFotoTransf = mesTotalTransf > 0 ? (mesFotosTransf / mesTotalTransf) * 100 : 0;
     const pctAnulados = purchaseCount > 0 ? (anulados / purchaseCount) * 100 : 0;
     const pctCm = purchasesOkCount > 0 ? (contramuestraCount / purchasesOkCount) * 100 : 0;
-    const pctCierre = hallazgosTotales > 0 ? (hallazgosCerrados / hallazgosTotales) * 100 : 0;
     const antiAdherencia = antiTeoSum > 0 ? (antiRealSum / antiTeoSum) * 100 : 100;
 
     // Calcular Cumplimientos
-    const statusFotoCompras = purchasesOkCount === 0 ? 'SIN DATO' : (pctFotoCompras >= 40 ? 'CUMPLE' : 'NO CUMPLE');
-    const statusFotoTransf = transferencesCount === 0 ? 'SIN DATO' : (pctFotoTransf >= 40 ? 'CUMPLE' : 'NO CUMPLE');
+    const statusFotoCompras = mesTotalCompras === 0 ? 'SIN DATO' : (pctFotoCompras >= 40 ? 'CUMPLE' : 'NO CUMPLE');
+    const statusFotoTransf = mesTotalTransf === 0 ? 'SIN DATO' : (pctFotoTransf >= 40 ? 'CUMPLE' : 'NO CUMPLE');
     const statusAnulados = purchaseCount === 0 ? 'SIN DATO' : 'CUMPLE';
     const statusCm = purchasesOkCount === 0 ? 'SIN DATO' : (pctCm >= 30 ? 'CUMPLE' : 'NO CUMPLE');
     const statusAnti = antiTeoSum === 0 ? 'SIN DATO' : (antiAdherencia >= 90 && antiAdherencia <= 110 ? 'CUMPLE' : 'NO CUMPLE');
-    const statusInterno = hallazgosTotales === 0 ? 'CUMPLE' : (pctCierre === 100 ? 'CUMPLE' : 'ALERTA');
 
     function getPdfPill(status) {
         if (status === 'CUMPLE') return '<div style="background-color: #10B981; color: white; font-weight: bold; text-align: center; border-radius: 4px; padding: 3px 0; font-size: 7.2pt; width: 68px; text-transform: uppercase; margin: 0 auto;">CUMPLE</div>';
@@ -4168,7 +4180,7 @@ function exportDashboardControlsReport() {
                         <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 7.8pt; color: #444; vertical-align: middle;">Confirmar el seguimiento del vehículo y la normalidad del proceso de compra.</td>
                         <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 7.8pt; color: #555; vertical-align: middle;">% compras con evidencia completa</td>
                         <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 8pt; text-align: center; vertical-align: middle; color: #333; font-weight: 500;">
-                            ${fotoCompras} / ${purchasesOkCount}
+                            ${mesFotosCompras} / ${mesTotalCompras}
                         </td>
                         <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 8pt; font-weight: bold; text-align: center; vertical-align: middle; color: #111;">
                             ${pctFotoCompras.toFixed(1)}%
@@ -4184,7 +4196,7 @@ function exportDashboardControlsReport() {
                         <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 7.8pt; color: #444; vertical-align: middle;">Confirmar el seguimiento del vehículo durante transferencias y detectar novedades.</td>
                         <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 7.8pt; color: #555; vertical-align: middle;">% transferencias con evidencia completa</td>
                         <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 8pt; text-align: center; vertical-align: middle; color: #333; font-weight: 500;">
-                            ${fotoTransf} / ${transferencesCount}
+                            ${mesFotosTransf} / ${mesTotalTransf}
                         </td>
                         <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 8pt; font-weight: bold; text-align: center; vertical-align: middle; color: #111;">
                             ${pctFotoTransf.toFixed(1)}%
@@ -4241,22 +4253,6 @@ function exportDashboardControlsReport() {
                             ${getPdfPill(statusAnti)}
                         </td>
                     </tr>
-                    <tr style="height: 35px; background-color: #f9f9f9;">
-                        <td style="border: 1px solid #ddd; padding: 8px 10px; font-weight: bold; font-size: 8pt; vertical-align: middle; color: #333;">
-                            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#E2001A; margin-right:8px; vertical-align:middle;"></span>Visita Control Interno
-                        </td>
-                        <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 7.8pt; color: #444; vertical-align: middle;">Documentar resultados de la visita, hallazgos y avance de acciones.</td>
-                        <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 7.8pt; color: #555; vertical-align: middle;">Hallazgos / % cierre</td>
-                        <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 8pt; text-align: center; vertical-align: middle; color: #333; font-weight: 500;">
-                            ${hallazgosCerrados} cerrados de ${hallazgosTotales}
-                        </td>
-                        <td style="border: 1px solid #ddd; padding: 8px 10px; font-size: 8pt; font-weight: bold; text-align: center; vertical-align: middle; color: #111;">
-                            ${pctCierre.toFixed(1)}%
-                        </td>
-                        <td style="border: 1px solid #ddd; padding: 8px 10px; vertical-align: middle; text-align: center;">
-                            ${getPdfPill(statusInterno)}
-                        </td>
-                    </tr>
                 </tbody>
             </table>
 
@@ -4271,8 +4267,7 @@ function exportDashboardControlsReport() {
                                 <li style="margin-bottom: 4px;"><strong>Fotográficos:</strong> Controlar la cobertura de evidencias por compras y transferencias.</li>
                                 <li style="margin-bottom: 4px;"><strong>Tickets:</strong> Monitorear cantidad anulada, causas y responsables.</li>
                                 <li style="margin-bottom: 4px;"><strong>Contramuestras:</strong> Comparar el porcentaje revisado frente a la meta establecida.</li>
-                                <li style="margin-bottom: 4px;"><strong>Antimicótico:</strong> Validar adherencia entre consumo real y consumo esperado.</li>
-                                <li style="margin-bottom: 0;"><strong>Control Interno:</strong> Revisar hallazgos, responsables, fechas compromiso y cierre.</li>
+                                <li style="margin-bottom: 0;"><strong>Antimicótico:</strong> Validar adherencia entre consumo real y consumo esperado.</li>
                             </ul>
                         </div>
                     </td>
