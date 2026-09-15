@@ -654,10 +654,9 @@ function syncPlantaSelectorUI() {
 
     const landingPlantLabel = document.getElementById('landing-plant-label');
     if (landingPlantLabel) {
-        const text = currentPlanta === 'TODAS' 
-            ? 'Consolidado General (Manta + Balzar)' 
-            : `Planta ${currentPlanta === 'MANTA' ? 'Manta' : 'Balzar'}`;
-        landingPlantLabel.innerText = `${text} • Control de Calidad`;
+        landingPlantLabel.innerText = currentPlanta === 'TODAS' 
+            ? 'CONSOLIDADO GENERAL' 
+            : `PLANTA ${currentPlanta === 'MANTA' ? 'MANTA' : 'BALZAR'}`;
     }
 }
 
