@@ -217,12 +217,14 @@ function applyUserSessionPermissions() {
     if (sidebarUserName) sidebarUserName.innerText = currentUserSession.username;
     if (sidebarUserRole) sidebarUserRole.innerText = currentUserSession.role;
 
-    // 2. Visibilidad de módulo de usuarios (Exclusivo Administrador)
+    // 2. Visibilidad de módulo de usuarios y botón Exportar (Exclusivo Administrador)
     const navBtnUsuarios = document.getElementById('nav-btn-usuarios');
     const landingModuleUsuarios = document.getElementById('landing-module-usuarios');
+    const btnExportDashboard = document.getElementById('btn-export-dashboard-report');
 
     if (navBtnUsuarios) navBtnUsuarios.style.display = isAdmin ? 'flex' : 'none';
     if (landingModuleUsuarios) landingModuleUsuarios.style.display = isAdmin ? 'flex' : 'none';
+    if (btnExportDashboard) btnExportDashboard.style.display = isAdmin ? 'inline-flex' : 'none';
 
     // 3. Segmentación de selectores de planta
     const selects = [
@@ -1776,9 +1778,15 @@ function renderDashboardStats(selectedMonth) {
             if (selectedMonth === 'all' || rDateStr.startsWith(selectedMonth)) {
                 antiTotalDays++;
                 
-                const consTeo = parseFloat(row.CONS_TEO || 0);
-                const consReal = parseFloat(row.CONS_REAL || 0);
-                const diff = parseFloat(row.DIFERENCIA || 0);
+                let consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
+                const consReal = parseFloat(row.CONS_REAL || row.cons_real || 0);
+                
+                const rowPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
+                if (rowPlanta === 'BALZAR' && consTeo === 0) {
+                    consTeo = getAntimicoticoTheoretical(rDateStr, 'BALZAR').consTeo;
+                }
+                
+                const diff = consReal - consTeo;
                 
                 let complies = true;
                 if (consTeo > 0) {
@@ -1994,8 +2002,14 @@ function renderVolumeChart(selectedMonth) {
         if (!isRecordInActivePlanta(row)) return;
         const d = formatDateReadable(row.FECHA || row.fecha);
         if (!d || d === '-') return;
-        const consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
+        let consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
         const consReal = parseFloat(row.CONS_REAL || row.cons_real || 0);
+        
+        const rowPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
+        if (rowPlanta === 'BALZAR' && consTeo === 0) {
+            consTeo = getAntimicoticoTheoretical(d, 'BALZAR').consTeo;
+        }
+
         let adh = null;
         if (consTeo > 0) {
             adh = parseFloat(((consReal / consTeo) * 100).toFixed(1));
@@ -2353,9 +2367,12 @@ function renderStatusChart(selectedMonth) {
     const rechPct = totalBoletos > 0 ? (rechazadosCount / totalBoletos) * 100 : 0;
     const accPct = totalBoletos > 0 ? (aceptadosCount / totalBoletos) * 100 : 100;
 
-    // Actualizar visualización horizontal segmentada (Diseño Corporativo de Referencia)
+    // Actualizar visualizaciones de métricas
     const elPctDisplay = document.getElementById('reception-pct-display');
     if (elPctDisplay) elPctDisplay.innerText = `${rechPct.toFixed(1).replace('.', ',')} %`;
+
+    const elDonutPct = document.getElementById('reception-donut-pct');
+    if (elDonutPct) elDonutPct.innerText = `${rechPct.toFixed(1).replace('.', ',')}%`;
 
     const elBarAccepted = document.getElementById('reception-bar-accepted');
     if (elBarAccepted) elBarAccepted.style.width = `${accPct}%`;
@@ -2372,25 +2389,44 @@ function renderStatusChart(selectedMonth) {
     const elCountTotal = document.getElementById('reception-count-total');
     if (elCountTotal) elCountTotal.innerText = totalBoletos.toLocaleString('es-EC');
 
-    // Soporte para canvas si aún estuviese en el DOM
+    // Renderizar gráfico circular (Doughnut / Barrita circular)
     const canvas = document.getElementById('statusChart');
     if (canvas) {
-        if (charts.status) charts.status.destroy();
+        if (charts.status) {
+            charts.status.destroy();
+            charts.status = null;
+        }
         const ctx = canvas.getContext('2d');
         charts.status = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['Aceptados', 'Rechazados'],
+                labels: ['Recibidos', 'Rechazados'],
                 datasets: [{
                     data: [aceptadosCount, rechazadosCount],
                     backgroundColor: ['#0D766E', '#DC2626'],
+                    hoverBackgroundColor: ['#0A5C56', '#B91C1C'],
                     borderColor: '#ffffff',
-                    borderWidth: 2
+                    borderWidth: 3
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                cutout: '72%',
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const val = context.raw || 0;
+                                const pct = totalBoletos > 0 ? ((val / totalBoletos) * 100).toFixed(1) : 0;
+                                return ` ${context.label}: ${val.toLocaleString('es-EC')} boletos (${pct}%)`;
+                            }
+                        }
+                    }
+                },
                 onClick: (event, elements) => {
                     if (elements && elements.length > 0) {
                         const idx = elements[0].index;
@@ -3512,6 +3548,52 @@ function findPreviousAntimicoticoRecord(dateStr) {
     return prev;
 }
 
+/**
+ * Calcula el consumo teórico y parámetros de antimicótico según la planta:
+ * - Balzar: 1 kg de antimicótico por cada 1 Tn de maíz comprado (no rechazado)
+ * - Manta: 40 kg de antimicótico por camión recibido
+ */
+function getAntimicoticoTheoretical(dateStr, planta) {
+    const targetPlanta = String(planta || currentPlanta || '').toUpperCase();
+    let totalKilosDay = 0;
+    let numTrucks = 0;
+    
+    if (appData.aries) {
+        appData.aries.forEach(row => {
+            const rowPlant = getRecordPlanta(row);
+            if (targetPlanta !== 'TODAS' && rowPlant !== targetPlanta) return;
+            if (formatDateReadable(row.FECHAENTRA) === dateStr) {
+                const isPurchase = Number(row.PESOARTIC) === 1;
+                const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
+                if (isPurchase && !isRejected) {
+                    numTrucks++;
+                    totalKilosDay += Number(row.PESOKILOS || row.CANTKILOSR || 0);
+                }
+            }
+        });
+    }
+    
+    const totalTm = totalKilosDay / 1000;
+    
+    if (targetPlanta === 'BALZAR') {
+        return {
+            consTeo: totalTm * 1.0, // 1 kg de antimicótico por cada 1 Tn de maíz comprado
+            numTrucks: numTrucks,
+            totalTm: totalTm,
+            isBalzar: true,
+            ruleText: '1 kg / 1 Tn Maíz'
+        };
+    } else {
+        return {
+            consTeo: numTrucks * 40.0, // 40 kg de antimicótico por camión recibido
+            numTrucks: numTrucks,
+            totalTm: totalTm,
+            isBalzar: false,
+            ruleText: '40 kg / camión'
+        };
+    }
+}
+
 function updateAntimicoticoCalculations() {
     const dateStr = document.getElementById('antimicotico-date').value;
     if (!dateStr) {
@@ -3541,38 +3623,42 @@ function updateAntimicoticoCalculations() {
     document.getElementById('anti-total-fin-lbl').innerText = `${total_fin.toFixed(1)} kg`;
     document.getElementById('anti-total-add-lbl').innerText = `${total_add.toFixed(1)} kg`;
     
-    const receivedTrucks = appData.aries.filter(row => {
-        const isSameDate = formatDateReadable(row.FECHAENTRA) === dateStr;
-        const isPurchase = Number(row.PESOARTIC) === 1;
-        const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
-        return isSameDate && isPurchase && !isRejected;
-    });
-    
-    const numTrucks = receivedTrucks.length;
-    const consTeo = numTrucks * 40.0;
+    const targetPlanta = (currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
+    const theo = getAntimicoticoTheoretical(dateStr, targetPlanta);
+    const numTrucks = theo.numTrucks;
+    const total_tm = theo.totalTm;
+    const consTeo = theo.consTeo;
+    const isBalzar = theo.isBalzar;
     
     const consReal = total_ini + total_add - total_fin;
     const diff = consReal - consTeo;
     
-    document.getElementById('anti-calc-trucks').innerText = `${numTrucks} camión${numTrucks !== 1 ? 'es' : ''}`;
-    document.getElementById('anti-calc-teo').innerText = `${consTeo.toFixed(1)} kg`;
-    document.getElementById('anti-calc-real').innerText = `${consReal.toFixed(1)} kg`;
-    
-    let totalKilosDay = 0;
-    if (appData.aries) {
-        appData.aries.forEach(row => {
-            if (formatDateReadable(row.FECHAENTRA) === dateStr) {
-                const isPurchase = Number(row.PESOARTIC) === 1;
-                const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
-                if (isPurchase && isRejected) {
-                    return;
-                }
-                totalKilosDay += Number(row.PESOKILOS || row.CANTKILOSR || 0);
-            }
-        });
+    const elTrucks = document.getElementById('anti-calc-trucks');
+    if (elTrucks) {
+        elTrucks.innerText = isBalzar
+            ? `${numTrucks} camión${numTrucks !== 1 ? 'es' : ''} (${total_tm.toFixed(1)} Tn Compradas)`
+            : `${numTrucks} camión${numTrucks !== 1 ? 'es' : ''}`;
     }
-    const total_tm = totalKilosDay / 1000;
-    document.getElementById('anti-total-tm').value = total_tm.toFixed(1);
+
+    const lblTeo = document.getElementById('lbl-anti-cons-teo');
+    if (lblTeo) {
+        lblTeo.innerText = isBalzar 
+            ? 'Consumo Teórico (1 kg / 1 Tn Maíz):' 
+            : 'Consumo Teórico (40 kg / camión):';
+    }
+
+    const elTeo = document.getElementById('anti-calc-teo');
+    if (elTeo) {
+        elTeo.innerText = isBalzar
+            ? `${consTeo.toFixed(1)} kg (${total_tm.toFixed(1)} Tn × 1 kg/Tn)`
+            : `${consTeo.toFixed(1)} kg (${numTrucks} camiones × 40 kg)`;
+    }
+
+    const elReal = document.getElementById('anti-calc-real');
+    if (elReal) elReal.innerText = `${consReal.toFixed(1)} kg`;
+    
+    const elTotalTm = document.getElementById('anti-total-tm');
+    if (elTotalTm) elTotalTm.value = total_tm.toFixed(1);
     
     const pctLtsTm = total_tm > 0 ? (consReal / total_tm) * 100 : 0;
     
@@ -3647,13 +3733,17 @@ function saveAntimicotico() {
     const bin1_add = parseFloat(document.getElementById('anti-bin1-add').value || 0);
     const bin2_add = parseFloat(document.getElementById('anti-bin2-add').value || 0);
     const bin3_add = parseFloat(document.getElementById('anti-bin3-add').value || 0);
-    const total_ini = parseFloat(document.getElementById('anti-total-ini').value || 0);
-    const total_fin = parseFloat(document.getElementById('anti-total-fin').value || 0);
-    const total_add = parseFloat(document.getElementById('anti-total-add').value || 0);
-    const numTrucks = parseInt(document.getElementById('anti-trucks-rcvd').value || 0, 10);
-    const consTeo = parseFloat(document.getElementById('anti-cons-teo').value || 0);
-    const consReal = parseFloat(document.getElementById('anti-cons-real').value || 0);
-    const diff = parseFloat(document.getElementById('anti-diferencia').value || 0);
+    
+    const total_ini = bin1_ini + bin2_ini + bin3_ini;
+    const total_fin = bin1_fin + bin2_fin + bin3_fin;
+    const total_add = bin1_add + bin2_add + bin3_add;
+    const consReal = total_ini + total_add - total_fin;
+
+    const targetPlanta = (currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
+    const theo = getAntimicoticoTheoretical(dateStr, targetPlanta);
+    const numTrucks = theo.numTrucks;
+    const consTeo = theo.consTeo;
+    const diff = consReal - consTeo;
 
     const n_bodega = document.getElementById('anti-bodega') ? document.getElementById('anti-bodega').value : '';
     const realizado_por = document.getElementById('anti-realizado') ? document.getElementById('anti-realizado').value : 'Karen Quijije';
@@ -3664,7 +3754,6 @@ function saveAntimicotico() {
         return;
     }
 
-    const targetPlanta = (currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
     if (!assertPlantaPermission(targetPlanta, 'guardar consumo de antimicótico')) return;
     const payload = {
         planta: targetPlanta,
@@ -3898,9 +3987,13 @@ function renderAntimicoticoHistoryTable() {
             const totalFin = Number(row.TOTAL_FIN || 0);
             const added = Number(row.CANT_AGREGADA || row.cant_agregada || 0);
             const trucks = Number(row.TRUCKS_RCVD || 0);
-            const consTeo = Number(row.CONS_TEO || 0);
+            let consTeo = Number(row.CONS_TEO || 0);
+            const rPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
+            if (rPlanta === 'BALZAR' && consTeo === 0) {
+                consTeo = getAntimicoticoTheoretical(dateStr, 'BALZAR').consTeo;
+            }
             const consReal = Number(row.CONS_REAL || 0);
-            const diff = Number(row.DIFERENCIA || 0);
+            const diff = consReal - consTeo;
             
             let diffPct = 0;
             let complies = true;
@@ -3978,15 +4071,20 @@ function updateMonthlyAdherenceKPI(selectedDateStr) {
     let totalDays = 0;
     let compliantDays = 0;
     
-    appData.antimicotico.forEach(row => {
+    (appData.antimicotico || []).forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const rDateStr = formatDateReadable(row.FECHA);
         if (rDateStr === '-') return;
         if (rDateStr.startsWith(targetYearMonth)) {
             totalDays++;
             
-            const consTeo = parseFloat(row.CONS_TEO || 0);
+            let consTeo = parseFloat(row.CONS_TEO || 0);
+            const rowPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
+            if (rowPlanta === 'BALZAR' && consTeo === 0) {
+                consTeo = getAntimicoticoTheoretical(rDateStr, 'BALZAR').consTeo;
+            }
             const consReal = parseFloat(row.CONS_REAL || 0);
-            const diff = parseFloat(row.DIFERENCIA || 0);
+            const diff = consReal - consTeo;
             
             let diffPct = 0;
             let complies = true;
@@ -4518,9 +4616,13 @@ function exportAntimicoticoReport() {
             const totalFin = parseFloat(row.TOTAL_FIN || row.total_fin || 0);
             const added = parseFloat(row.CANT_AGREGADA || row.cant_agregada || 0);
             const consReal = parseFloat(row.CONS_REAL || row.cons_real || 0);
-            const consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
+            let consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
+            const rPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
+            if (rPlanta === 'BALZAR' && consTeo === 0) {
+                consTeo = getAntimicoticoTheoretical(dateStr, 'BALZAR').consTeo;
+            }
             const trucks = parseInt(row.TRUCKS_RCVD || row.trucks_rcvd || 0, 10);
-            const diff = parseFloat(row.DIFERENCIA || row.diferencia || (consReal - consTeo));
+            const diff = consReal - consTeo;
 
             let diffPct = 0;
             let complies = true;
@@ -4742,7 +4844,12 @@ function updateControlsMatrixTable(selectedMonth) {
             const dateStr = formatDateReadable(row.FECHA);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
-                antiTeoSum += parseFloat(row.CONS_TEO || 0);
+                let rTeo = parseFloat(row.CONS_TEO || 0);
+                const rPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
+                if (rPlanta === 'BALZAR' && rTeo === 0) {
+                    rTeo = getAntimicoticoTheoretical(dateStr, 'BALZAR').consTeo;
+                }
+                antiTeoSum += rTeo;
                 antiRealSum += parseFloat(row.CONS_REAL || 0);
             }
         });
@@ -4861,6 +4968,11 @@ function updateControlsMatrixTable(selectedMonth) {
 }
 
 function exportDashboardControlsReport() {
+    if (currentUserSession && currentUserSession.role !== 'ADMIN') {
+        showToast('Acceso restringido: Solo el usuario Administrador puede exportar reportes ejecutivos.', 'warning');
+        return;
+    }
+
     const select = document.getElementById('dashboard-month-filter');
     const selectedMonth = select ? select.value : 'all';
     
@@ -4919,7 +5031,12 @@ function exportDashboardControlsReport() {
             const dateStr = formatDateReadable(row.FECHA);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
-                antiTeoSum += parseFloat(row.CONS_TEO || 0);
+                let rTeo = parseFloat(row.CONS_TEO || 0);
+                const rPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
+                if (rPlanta === 'BALZAR' && rTeo === 0) {
+                    rTeo = getAntimicoticoTheoretical(dateStr, 'BALZAR').consTeo;
+                }
+                antiTeoSum += rTeo;
                 antiRealSum += parseFloat(row.CONS_REAL || 0);
             }
         });

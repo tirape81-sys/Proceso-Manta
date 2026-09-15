@@ -6,7 +6,7 @@
     <title>Planta Manta - Control de Calidad</title>
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="app.css?v=5.10">
+    <link rel="stylesheet" href="app.css?v=5.11">
     
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -390,7 +390,7 @@
                                 <!-- Populated dynamically -->
                             </select>
                         </div>
-                        <button onclick="exportDashboardControlsReport()" class="btn-export-pronaca">
+                        <button id="btn-export-dashboard-report" onclick="exportDashboardControlsReport()" class="btn-export-pronaca">
                             <i class="fa-solid fa-file-lines"></i> Exportar reporte
                         </button>
                     </div>
@@ -535,10 +535,12 @@
                             <div id="reception-pct-display" class="reception-pct-badge">0,0 %</div>
                         </div>
                         
-                        <div class="reception-bar-container">
-                            <div class="reception-bar-track" title="Segmentación: Recibidos vs Rechazados">
-                                <div id="reception-bar-accepted" class="reception-bar-fill-accepted" style="width: 100%;"></div>
-                                <div id="reception-bar-rejected" class="reception-bar-fill-rejected" style="width: 0%;"></div>
+                        <!-- Gráfico Circular / Barrita Circular -->
+                        <div class="reception-chart-wrap" style="position: relative; height: 175px; width: 100%; display: flex; align-items: center; justify-content: center; margin: 6px 0 14px 0;">
+                            <canvas id="statusChart"></canvas>
+                            <div id="reception-donut-center" style="position: absolute; text-align: center; pointer-events: none;">
+                                <div id="reception-donut-pct" style="font-size: 1.35rem; font-weight: 800; color: #0F172A; line-height: 1.1;">0,0%</div>
+                                <div style="font-size: 0.65rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em;">Rechazo</div>
                             </div>
                         </div>
 
@@ -895,7 +897,7 @@
                                     <strong id="anti-calc-trucks" style="color: var(--text-main);">0 camiones</strong>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
-                                    <span style="color: var(--text-muted);">Consumo Teórico (40kg/camión):</span>
+                                    <span id="lbl-anti-cons-teo" style="color: var(--text-muted);">Consumo Teórico:</span>
                                     <strong id="anti-calc-teo" style="color: var(--text-main);">0.0 kg</strong>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
@@ -1627,6 +1629,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=5.10"></script>
+    <script src="app.js?v=5.11"></script>
 </body>
 </html>
