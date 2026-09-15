@@ -396,14 +396,14 @@ function renderUsersTable(filterPlant = 'TODAS', searchTerm = '') {
                 </td>
                 <td style="padding: 12px 18px; text-align: right;">
                     <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                        <button type="button" class="btn-action" onclick="openEditUserModal(${u.id})" style="background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="Editar Usuario">
+                        <button type="button" class="btn-action" onclick="openEditUserModal('${u.id}')" style="background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="Editar Usuario">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
-                        <button type="button" class="btn-action" onclick="toggleUserStatus(${u.id})" style="background: ${isActivo ? '#FFFBEB' : '#ECFDF5'}; color: ${isActivo ? '#D97706' : '#047857'}; border: 1px solid ${isActivo ? '#FDE68A' : '#A7F3D0'}; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="${isActivo ? 'Desactivar' : 'Activar'}">
+                        <button type="button" class="btn-action" onclick="toggleUserStatus('${u.id}')" style="background: ${isActivo ? '#FFFBEB' : '#ECFDF5'}; color: ${isActivo ? '#D97706' : '#047857'}; border: 1px solid ${isActivo ? '#FDE68A' : '#A7F3D0'}; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="${isActivo ? 'Desactivar' : 'Activar'}">
                             <i class="fa-solid ${isActivo ? 'fa-user-slash' : 'fa-user-check'}"></i>
                         </button>
                         ${u.username !== 'admin' ? `
-                        <button type="button" class="btn-action" onclick="deleteUser(${u.id})" style="background: #FEF2F2; color: #EF4444; border: 1px solid #FECACA; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="Eliminar Usuario">
+                        <button type="button" class="btn-action" onclick="deleteUser('${u.id}')" style="background: #FEF2F2; color: #EF4444; border: 1px solid #FECACA; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="Eliminar Usuario">
                             <i class="fa-solid fa-trash"></i>
                         </button>
                         ` : ''}
@@ -430,11 +430,14 @@ function openCreateUserModal() {
     document.getElementById('user-modal-activo').checked = true;
 
     const modal = document.getElementById('modal-usuario');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
 }
 
 function openEditUserModal(id) {
-    const user = systemUsers.find(u => Number(u.id) === Number(id));
+    const user = systemUsers.find(u => String(u.id) === String(id));
     if (!user) return;
 
     document.getElementById('modal-usuario-title').innerHTML = '<i class="fa-solid fa-user-pen" style="color: #0284C7;"></i> Editar Usuario';
@@ -448,12 +451,19 @@ function openEditUserModal(id) {
     document.getElementById('user-modal-activo').checked = (user.activo !== false);
 
     const modal = document.getElementById('modal-usuario');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
 }
 
 function closeUserModal() {
     const modal = document.getElementById('modal-usuario');
-    if (modal) modal.style.display = 'none';
+    if (!modal) return;
+    modal.classList.remove('active');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
 }
 
 function onUserModalRoleChange(role) {
@@ -531,7 +541,7 @@ async function saveUserFromModal() {
 
 function saveUserLocal(isEdit, id, payload) {
     if (isEdit) {
-        const idx = systemUsers.findIndex(u => Number(u.id) === Number(id));
+        const idx = systemUsers.findIndex(u => String(u.id) === String(id));
         if (idx !== -1) {
             systemUsers[idx] = { ...systemUsers[idx], ...payload };
         }
@@ -544,7 +554,7 @@ function saveUserLocal(isEdit, id, payload) {
 }
 
 async function toggleUserStatus(id) {
-    const user = systemUsers.find(u => Number(u.id) === Number(id));
+    const user = systemUsers.find(u => String(u.id) === String(id));
     if (!user) return;
     if (user.username === 'admin') {
         showToast('No se puede desactivar al usuario administrador principal', 'warning');
@@ -568,7 +578,7 @@ async function toggleUserStatus(id) {
 }
 
 async function deleteUser(id) {
-    const user = systemUsers.find(u => Number(u.id) === Number(id));
+    const user = systemUsers.find(u => String(u.id) === String(id));
     if (!user) return;
     if (user.username === 'admin') {
         showToast('No se puede eliminar al usuario administrador principal', 'warning');
@@ -586,7 +596,7 @@ async function deleteUser(id) {
         });
     } catch(e) {}
 
-    systemUsers = systemUsers.filter(u => Number(u.id) !== Number(id));
+    systemUsers = systemUsers.filter(u => String(u.id) !== String(id));
     localStorage.setItem('balzar_system_users', JSON.stringify(systemUsers));
     showToast(`Usuario '${user.username}' eliminado con éxito`, 'success');
     renderUsersTable();
