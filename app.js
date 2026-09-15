@@ -13,6 +13,157 @@ let charts = {};
 let selectedSampleTickets = [];
 let pendingTab = null; // Track which tab was clicked before file upload
 
+// ==========================================================================
+// ESTADO MULTI-PLANTA Y CONTROL DE PERMISOS (MANTA / BALZAR)
+// ==========================================================================
+let currentPlanta = localStorage.getItem('balzar_current_planta') || 'MANTA';
+let currentSyncPlanta = 'MANTA';
+
+// Estructura de sesión del usuario actual (preparada para el módulo de usuarios)
+let currentUserSession = {
+    username: 'admin',
+    role: 'ADMIN', // 'ADMIN', 'OPERADOR_MANTA', 'OPERADOR_BALZAR', 'AUDITOR'
+    allowedPlantas: ['MANTA', 'BALZAR'] // Permisos asignados por planta
+};
+
+/**
+ * Valida si el usuario actual tiene permisos de carga o edición para una planta
+ * @param {string} targetPlanta - 'MANTA' o 'BALZAR'
+ * @returns {boolean}
+ */
+function canUserEditPlanta(targetPlanta) {
+    if (!currentUserSession) return true;
+    if (currentUserSession.role === 'ADMIN') return true;
+    if (currentUserSession.allowedPlantas && currentUserSession.allowedPlantas.includes('*')) return true;
+    if (currentUserSession.allowedPlantas && currentUserSession.allowedPlantas.includes(targetPlanta.toUpperCase())) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Muestra advertencia si el usuario no tiene permisos para operar en la planta seleccionada
+ */
+function assertPlantaPermission(targetPlanta, actionDesc = 'realizar esta acción') {
+    if (!canUserEditPlanta(targetPlanta)) {
+        showToast(`No tiene permisos asignados para ${actionDesc} en Planta ${targetPlanta}. Consulte al administrador.`, 'danger');
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Evalúa si un registro pertenece a la planta actualmente seleccionada en el filtro global
+ * @param {object} record
+ * @returns {boolean}
+ */
+function isRecordInActivePlanta(record) {
+    if (!record) return false;
+    if (currentPlanta === 'TODAS') return true;
+    const p = (record.planta || record.PLANTA || 'MANTA').toUpperCase();
+    return p === currentPlanta.toUpperCase();
+}
+
+/**
+ * Sincroniza todos los selectores de planta de la interfaz gráfica
+ */
+function syncPlantaSelectorUI() {
+    const globalSel = document.getElementById('global-planta-select');
+    if (globalSel) globalSel.value = currentPlanta;
+
+    const landingSel = document.getElementById('landing-planta-select');
+    if (landingSel) landingSel.value = currentPlanta;
+
+    const dashSel = document.getElementById('dashboard-planta-filter');
+    if (dashSel) dashSel.value = currentPlanta;
+
+    const sidebarPlantLabel = document.getElementById('sidebar-plant-label');
+    if (sidebarPlantLabel) {
+        sidebarPlantLabel.innerText = currentPlanta === 'TODAS' ? 'CONSOLIDADO' : currentPlanta;
+    }
+
+    const landingPlantLabel = document.getElementById('landing-plant-label');
+    if (landingPlantLabel) {
+        const text = currentPlanta === 'TODAS' 
+            ? 'Consolidado General (Manta + Balzar)' 
+            : `Planta ${currentPlanta === 'MANTA' ? 'Manta' : 'Balzar'}`;
+        landingPlantLabel.innerText = `${text} • Control de Calidad`;
+    }
+}
+
+/**
+ * Manejador del cambio de planta global
+ */
+function onGlobalPlantaChange(newPlanta) {
+    if (!newPlanta) return;
+    currentPlanta = newPlanta.toUpperCase();
+    localStorage.setItem('balzar_current_planta', currentPlanta);
+    syncPlantaSelectorUI();
+    
+    if (currentPlanta !== 'TODAS') {
+        setSyncPlanta(currentPlanta);
+    }
+
+    populateDashboardMonthFilter();
+    updateDashboard();
+    initializeContramuestraControls();
+    
+    if (activeTab === 'historial') {
+        renderHistoryTable();
+    }
+    if (activeTab === 'antimicotico') {
+        initializeAntimicoticoControls();
+    }
+    if (activeTab === 'fotografico') {
+        renderSeguimientoFotograficoModule();
+    }
+
+    showToast(`Visualizando datos de: ${currentPlanta === 'TODAS' ? 'Consolidado General' : 'Planta ' + currentPlanta}`, 'info');
+}
+
+/**
+ * Cambia la planta destino en el módulo y modal de sincronización Excel
+ */
+function setSyncPlanta(planta) {
+    currentSyncPlanta = planta.toUpperCase();
+    
+    const btnManta = document.getElementById('btn-sync-planta-manta');
+    const btnBalzar = document.getElementById('btn-sync-planta-balzar');
+    if (btnManta && btnBalzar) {
+        if (currentSyncPlanta === 'MANTA') {
+            btnManta.style.background = '#0f172a';
+            btnManta.style.color = '#ffffff';
+            btnBalzar.style.background = 'transparent';
+            btnBalzar.style.color = '#475569';
+        } else {
+            btnBalzar.style.background = '#0f172a';
+            btnBalzar.style.color = '#ffffff';
+            btnManta.style.background = 'transparent';
+            btnManta.style.color = '#475569';
+        }
+    }
+
+    const tabBtnManta = document.getElementById('sync-tab-planta-manta');
+    const tabBtnBalzar = document.getElementById('sync-tab-planta-balzar');
+    if (tabBtnManta && tabBtnBalzar) {
+        if (currentSyncPlanta === 'MANTA') {
+            tabBtnManta.style.background = '#0f172a';
+            tabBtnManta.style.color = '#ffffff';
+            tabBtnBalzar.style.background = 'transparent';
+            tabBtnBalzar.style.color = '#475569';
+        } else {
+            tabBtnBalzar.style.background = '#0f172a';
+            tabBtnBalzar.style.color = '#ffffff';
+            tabBtnManta.style.background = 'transparent';
+            tabBtnManta.style.color = '#475569';
+        }
+    }
+
+    if (lastLoadedSyncWorkbook) {
+        processExcelSyncWorkbook(lastLoadedSyncWorkbook.workbook, lastLoadedSyncWorkbook.fileName);
+    }
+}
+
 // Web Login Security
 window.checkLoginPassword = function() {
     const passInput = document.getElementById('login-pass');
@@ -41,6 +192,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (overlay) overlay.style.display = 'none';
         }
     } catch(e) {}
+    syncPlantaSelectorUI();
+    setSyncPlanta(currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
     setupDragAndDrop();
     loadCachedData();
     tryAutoLoadExcel();
@@ -129,7 +282,14 @@ async function tryAutoLoadExcel() {
 
         if (resFoto && resFoto.ok) {
             try {
-                appData.seguimiento_fotografico = await resFoto.json();
+                const rawFoto = await resFoto.json();
+                appData.seguimiento_fotografico = (rawFoto || []).map(r => {
+                    const obj = { ...r };
+                    const p = (r.planta || 'MANTA').toUpperCase();
+                    obj.planta = p;
+                    obj.PLANTA = p;
+                    return obj;
+                });
             } catch(e) {
                 appData.seguimiento_fotografico = [];
             }
@@ -144,6 +304,9 @@ async function tryAutoLoadExcel() {
                 obj[k.toUpperCase()] = r[k];
                 obj[k] = r[k];
             }
+            const p = (r.planta || 'MANTA').toUpperCase();
+            obj.planta = p;
+            obj.PLANTA = p;
             return obj;
         });
 
@@ -154,37 +317,45 @@ async function tryAutoLoadExcel() {
                 obj[k.toUpperCase()] = r[k];
                 obj[k] = r[k];
             }
+            const p = (r.planta || 'MANTA').toUpperCase();
+            obj.planta = p;
+            obj.PLANTA = p;
             return obj;
         });
 
         // 3. Mapear contramuestras
-        appData.contramuestra = dataCm.map(r => ({
-            'FECHA': r.fecha,
-            'PLACA': r.placa,
-            'TICKET No.': r.ticket_no,
-            'FECHA DE COMPRA': r.fecha_compra,
-            'ARTICULO': r.articulo,
-            'KILOS': r.kilos,
-            'ARIES_% HUM 1': r.hum1_aries,
-            'ARIES_%HUM2': r.hum2_aries,
-            'ARIES_%HUM3': r.hum3_aries,
-            'ARIES_%IMP': r.imp_aries,
-            'ARIES_PODRIDOS': r.podridos_aries,
-            'ARIES_PARTIDOS': r.partidos_aries,
-            'ARIES_HONGOS': r.hongos_aries,
-            'ARIES_INSECTOS': r.insectos_aries,
-            'ARIES_CALOR': r.calor_aries,
-            'CALID_%HUM1': r.hum1_asist,
-            'CALID_%HUM2': r.hum2_asist,
-            'CALID_%HUM3': r.hum3_asist,
-            'CALID_%IMP': r.imp_asist,
-            'CALID_PODRIDOS': r.podridos_asist,
-            'CALID_PARTIDOS': r.partidos_asist,
-            'CALID_HONGOS': r.hongos_asist,
-            'CALID_INSECTOS': r.insectos_asist,
-            'CALID_CALOR': r.calor_asist,
-            'CALID_PRO. %HUMEDAD': r.prom_humedad_asist
-        }));
+        appData.contramuestra = dataCm.map(r => {
+            const p = (r.planta || 'MANTA').toUpperCase();
+            return {
+                'planta': p,
+                'PLANTA': p,
+                'FECHA': r.fecha,
+                'PLACA': r.placa,
+                'TICKET No.': r.ticket_no,
+                'FECHA DE COMPRA': r.fecha_compra,
+                'ARTICULO': r.articulo,
+                'KILOS': r.kilos,
+                'ARIES_% HUM 1': r.hum1_aries,
+                'ARIES_%HUM2': r.hum2_aries,
+                'ARIES_%HUM3': r.hum3_aries,
+                'ARIES_%IMP': r.imp_aries,
+                'ARIES_PODRIDOS': r.podridos_aries,
+                'ARIES_PARTIDOS': r.partidos_aries,
+                'ARIES_HONGOS': r.hongos_aries,
+                'ARIES_INSECTOS': r.insectos_aries,
+                'ARIES_CALOR': r.calor_aries,
+                'CALID_%HUM1': r.hum1_asist,
+                'CALID_%HUM2': r.hum2_asist,
+                'CALID_%HUM3': r.hum3_asist,
+                'CALID_%IMP': r.imp_asist,
+                'CALID_PODRIDOS': r.podridos_asist,
+                'CALID_PARTIDOS': r.partidos_asist,
+                'CALID_HONGOS': r.hongos_asist,
+                'CALID_INSECTOS': r.insectos_asist,
+                'CALID_CALOR': r.calor_asist,
+                'CALID_PRO. %HUMEDAD': r.prom_humedad_asist
+            };
+        });
 
         // 4. Mapear antimicotico
         appData.antimicotico = dataAnti.map(r => {
@@ -193,6 +364,9 @@ async function tryAutoLoadExcel() {
                 obj[k.toUpperCase()] = r[k];
                 obj[k] = r[k];
             }
+            const p = (r.planta || 'MANTA').toUpperCase();
+            obj.planta = p;
+            obj.PLANTA = p;
             obj['#_DE_BODEGA'] = r.bodega;
             obj['BODEGA'] = r.bodega;
             obj['REALIZADO_POR'] = r.realizado_por;
@@ -207,11 +381,15 @@ async function tryAutoLoadExcel() {
                 obj[k.toUpperCase()] = r[k];
                 obj[k] = r[k];
             }
+            const p = (r.planta || 'MANTA').toUpperCase();
+            obj.planta = p;
+            obj.PLANTA = p;
             return obj;
         });
 
         appWorkbook = { isSupabase: true };
         
+        syncPlantaSelectorUI();
         initializeDashboard();
         initializeContramuestraControls();
         initializeAntimicoticoControls();
@@ -561,7 +739,7 @@ function initializeHistoryCalendarControls() {
     populateHistoryMonthFilter();
     
     // Obtener fechas únicas que tienen contramuestras registradas
-    const uniqueRegDates = [...new Set(appData.contramuestra.map(row => formatDateReadable(row['FECHA'])))].filter(d => d && d !== '-');
+    const uniqueRegDates = [...new Set(appData.contramuestra.filter(r => isRecordInActivePlanta(r)).map(row => formatDateReadable(row['FECHA'])))].filter(d => d && d !== '-');
     uniqueRegDates.sort((a, b) => new Date(b) - new Date(a));
     
     if (window.flatpickrHistoryInstance) {
@@ -631,6 +809,7 @@ function populateHistoryMonthFilter() {
     const monthsSet = new Set();
     
     appData.contramuestra.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const dateStr = formatDateReadable(row['FECHA']);
         if (dateStr && dateStr !== '-') {
             const parts = dateStr.split('-');
@@ -703,6 +882,7 @@ function renderHistoryTable(dateFilter = null, monthFilter = null) {
     
     // Filtrar para que solo se muestren contramuestras de compras recibidas (no rechazadas)
     const validContramuestras = (appData.contramuestra || []).filter(row => {
+        if (!isRecordInActivePlanta(row)) return false;
         const ticketNo = Number(row['TICKET No.']);
         if (!ticketNo) return true;
         const ariesRow = (appData.aries || []).find(a => Number(a.TICKETPESO) === ticketNo);
@@ -908,6 +1088,14 @@ function formatDateReadable(dateVal) {
     return dateStr;
 }
 
+
+function updateDashboard() {
+    const select = document.getElementById('dashboard-month-filter');
+    const m = select ? select.value : 'all';
+    renderDashboardStats(m);
+    updateControlsMatrixTable(m);
+}
+
 function initializeDashboard() {
     if (!appData.aries || appData.aries.length === 0) return;
     populateDashboardMonthFilter();
@@ -922,6 +1110,7 @@ function populateDashboardMonthFilter() {
     const monthsSet = new Set();
     
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const dateStr = formatDateReadable(row.FECHAENTRA);
         if (dateStr && dateStr !== '-') {
             const parts = dateStr.split('-');
@@ -968,6 +1157,7 @@ function renderDashboardStats(selectedMonth) {
     let rejectedCount = 0;
 
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const dateStr = formatDateReadable(row.FECHAENTRA);
         if (dateStr === '-') return;
         if (selectedMonth !== 'all' && !dateStr.startsWith(selectedMonth)) return;
@@ -992,6 +1182,7 @@ function renderDashboardStats(selectedMonth) {
     let contramuestraCount = 0;
     if (appData.contramuestra) {
         appData.contramuestra.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const dateStr = formatDateReadable(row.FECHA);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
@@ -1005,6 +1196,7 @@ function renderDashboardStats(selectedMonth) {
     let antiTotalDays = 0;
     if (appData.antimicotico) {
         appData.antimicotico.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const rDateStr = formatDateReadable(row.FECHA);
             if (rDateStr === '-') return;
             if (selectedMonth === 'all' || rDateStr.startsWith(selectedMonth)) {
@@ -1197,6 +1389,7 @@ function renderVolumeChart(selectedMonth) {
     // Map daily photographic monitoring data
     const dailyFotoMap = {};
     (appData.seguimiento_fotografico || []).forEach(r => {
+        if (!isRecordInActivePlanta(r)) return;
         const d = formatDateReadable(r.fecha || r.FECHA);
         if (!d || d === '-') return;
         const fc = parseInt(r.fotos_compras || 0, 10);
@@ -1223,6 +1416,7 @@ function renderVolumeChart(selectedMonth) {
     // Map daily antimicotico data
     const dailyAntiMap = {};
     (appData.antimicotico || []).forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const d = formatDateReadable(row.FECHA || row.fecha);
         if (!d || d === '-') return;
         const consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
@@ -1239,6 +1433,7 @@ function renderVolumeChart(selectedMonth) {
     const dailyData = {};
     
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const dateStr = formatDateReadable(row.FECHAENTRA);
         if (dateStr === '-') return;
         if (currentVolumeChartMode !== 'monthly' && selectedMonth !== 'all' && !dateStr.startsWith(selectedMonth)) return;
@@ -1316,14 +1511,17 @@ function renderVolumeChart(selectedMonth) {
     } else if (currentVolumeChartMode === 'monthly') {
         const monthsSet = new Set();
         appData.aries.forEach(r => {
+            if (!isRecordInActivePlanta(r)) return;
             const d = formatDateReadable(r.FECHAENTRA);
             if (d && d.length >= 7 && d !== '-') monthsSet.add(d.substring(0, 7));
         });
         (appData.seguimiento_fotografico || []).forEach(r => {
+            if (!isRecordInActivePlanta(r)) return;
             const d = formatDateReadable(r.fecha || r.FECHA);
             if (d && d.length >= 7 && d !== '-') monthsSet.add(d.substring(0, 7));
         });
         (appData.antimicotico || []).forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const d = formatDateReadable(row.FECHA || row.fecha);
             if (d && d.length >= 7 && d !== '-') monthsSet.add(d.substring(0, 7));
         });
@@ -1342,6 +1540,7 @@ function renderVolumeChart(selectedMonth) {
         });
 
         appData.aries.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const dateStr = formatDateReadable(row.FECHAENTRA);
             if (!dateStr || dateStr === '-') return;
             const m = dateStr.substring(0, 7);
@@ -1353,6 +1552,7 @@ function renderVolumeChart(selectedMonth) {
         });
 
         (appData.antimicotico || []).forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const d = formatDateReadable(row.FECHA || row.fecha);
             if (!d || d === '-') return;
             const m = d.substring(0, 7);
@@ -1545,6 +1745,7 @@ function renderStatusChart(selectedMonth) {
     let rechazadosCount = 0;
 
     appData.calidad.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const dateStr = formatDateReadable(row.FECHAENTRA || row.FECHA || row.FECHACREACION);
         if (selectedMonth !== 'all' && dateStr && dateStr !== '-' && !dateStr.startsWith(selectedMonth)) return;
 
@@ -1733,6 +1934,7 @@ function renderDashboardDrilldownTable() {
     }
 
     const baseList = appData.aries.filter(row => {
+        if (!isRecordInActivePlanta(row)) return false;
         const d = formatDateReadable(row.FECHAENTRA);
         if (d === '-') return false;
         if (selectedMonth !== 'all' && !d.startsWith(selectedMonth)) return false;
@@ -2117,6 +2319,7 @@ function initializeContramuestraControls() {
     const datesWithQuality = new Set();
     
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const ticketNo = Number(row.TICKETPESO);
         
         // 1. Debe ser COMPRA (PESOARTIC === 1)
@@ -2195,6 +2398,7 @@ function generateRandomSample() {
 
     // Filtrar únicamente boletos de COMPRAS y RECIBIDOS (no rechazados) con análisis de calidad
     const dayTickets = appData.aries.filter(row => {
+        if (!isRecordInActivePlanta(row)) return false;
         const isSameDate = formatDateReadable(row.FECHAENTRA) === targetDate;
         if (!isSameDate) return false;
         
@@ -2482,7 +2686,10 @@ function saveSampleToExcel() {
             return;
         }
 
+        const targetPlanta = (currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
+        if (!assertPlantaPermission(targetPlanta, 'guardar contramuestras')) return;
         const recordsToInsert = payload.map(item => ({
+            planta: targetPlanta,
             fecha: item.fechaCm ? item.fechaCm.split('T')[0] : new Date().toISOString().split('T')[0],
             placa: item.placa,
             ticket_no: item.ticketNo,
@@ -2537,6 +2744,7 @@ function saveSampleToExcel() {
 function initializeAntimicoticoControls() {
     const datesWithTrucks = new Set();
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const dateStr = formatDateReadable(row.FECHAENTRA);
         if (dateStr && dateStr !== '-') {
             datesWithTrucks.add(dateStr);
@@ -2544,7 +2752,7 @@ function initializeAntimicoticoControls() {
     });
     
     // Obtener fechas que ya tienen un consumo diario registrado para deshabilitarlas en la selección (evita manipulación)
-    const registeredDates = new Set(appData.antimicotico.map(r => formatDateReadable(r.FECHA)));
+    const registeredDates = new Set(appData.antimicotico.filter(r => isRecordInActivePlanta(r)).map(r => formatDateReadable(r.FECHA)));
     
     // Filtrar para habilitar solo las fechas que tienen camiones recibidos y que NO han sido registradas aún
     const enabledDates = Array.from(datesWithTrucks)
@@ -2862,7 +3070,10 @@ function saveAntimicotico() {
         return;
     }
 
+    const targetPlanta = (currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
+    if (!assertPlantaPermission(targetPlanta, 'guardar consumo de antimicótico')) return;
     const payload = {
+        planta: targetPlanta,
         fecha: dateStr,
         bin1_ini: bin1_ini,
         bin2_ini: bin2_ini,
@@ -2922,6 +3133,7 @@ function updateAntimicoticoInventoryBalance() {
     // Sumar ingresos / entregas
     if (appData.antimicotico_ingresos) {
         appData.antimicotico_ingresos.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             totalIn += parseFloat(row.CANTIDAD_KG || 0);
         });
     }
@@ -2929,6 +3141,7 @@ function updateAntimicoticoInventoryBalance() {
     // Sumar consumos diarios
     if (appData.antimicotico) {
         appData.antimicotico.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             totalOut += parseFloat(row.CONS_REAL || 0);
         });
     }
@@ -3021,7 +3234,10 @@ function saveAntiIngreso() {
         return;
     }
     
+    const targetPlanta = (currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
+    if (!assertPlantaPermission(targetPlanta, 'registrar entrega de antimicótico')) return;
     const payload = {
+        planta: targetPlanta,
         fecha: dateStr,
         cantidad_kg: qty,
         referencia: ref || 'Entrega registrada'
@@ -3080,7 +3296,7 @@ function renderAntimicoticoHistoryTable() {
             return;
         }
         
-        const sorted = [...appData.antimicotico].sort((a, b) => new Date(b.FECHA) - new Date(a.FECHA));
+        const sorted = [...appData.antimicotico.filter(r => isRecordInActivePlanta(r))].sort((a, b) => new Date(b.FECHA) - new Date(a.FECHA));
         tbody.innerHTML = '';
         sorted.forEach(row => {
             const dateStr = formatDateReadable(row.FECHA);
@@ -3138,7 +3354,7 @@ function renderAntimicoticoHistoryTable() {
             return;
         }
         
-        const sorted = [...appData.antimicotico_ingresos].sort((a, b) => new Date(b.FECHA) - new Date(a.FECHA));
+        const sorted = [...appData.antimicotico_ingresos.filter(r => isRecordInActivePlanta(r))].sort((a, b) => new Date(b.FECHA) - new Date(a.FECHA));
         tbody.innerHTML = '';
         sorted.forEach(row => {
             const dateStr = formatDateReadable(row.FECHA);
@@ -3892,6 +4108,7 @@ function updateControlsMatrixTable(selectedMonth) {
     let rejectedCount = 0;
     
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const dateStr = formatDateReadable(row.FECHAENTRA);
         if (dateStr === '-') return;
         if (selectedMonth !== 'all' && !dateStr.startsWith(selectedMonth)) return;
@@ -3914,6 +4131,7 @@ function updateControlsMatrixTable(selectedMonth) {
     let contramuestraCount = 0;
     if (appData.contramuestra) {
         appData.contramuestra.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const dateStr = formatDateReadable(row.FECHA);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
@@ -3926,6 +4144,7 @@ function updateControlsMatrixTable(selectedMonth) {
     let antiRealSum = 0;
     if (appData.antimicotico) {
         appData.antimicotico.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const dateStr = formatDateReadable(row.FECHA);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
@@ -3940,7 +4159,7 @@ function updateControlsMatrixTable(selectedMonth) {
     let mesFotosTransf = 0;
     let mesTotalTransf = 0;
 
-    const listFotos = appData.seguimiento_fotografico || [];
+    const listFotos = (appData.seguimiento_fotografico || []).filter(r => isRecordInActivePlanta(r));
     listFotos.forEach(r => {
         const d = formatDateReadable(r.fecha || r.FECHA);
         if (d === '-') return;
@@ -4065,6 +4284,7 @@ function exportDashboardControlsReport() {
     let purchasedKilos = 0;
     
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const dateStr = formatDateReadable(row.FECHAENTRA);
         if (dateStr === '-') return;
         if (selectedMonth !== 'all' && !dateStr.startsWith(selectedMonth)) return;
@@ -4088,6 +4308,7 @@ function exportDashboardControlsReport() {
     let contramuestraCount = 0;
     if (appData.contramuestra) {
         appData.contramuestra.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const dateStr = formatDateReadable(row.FECHA);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
@@ -4100,6 +4321,7 @@ function exportDashboardControlsReport() {
     let antiRealSum = 0;
     if (appData.antimicotico) {
         appData.antimicotico.forEach(row => {
+            if (!isRecordInActivePlanta(row)) return;
             const dateStr = formatDateReadable(row.FECHA);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
@@ -4114,7 +4336,7 @@ function exportDashboardControlsReport() {
     let mesFotosTransf = 0;
     let mesTotalTransf = 0;
 
-    const listFotos = appData.seguimiento_fotografico || [];
+    const listFotos = (appData.seguimiento_fotografico || []).filter(r => isRecordInActivePlanta(r));
     listFotos.forEach(r => {
         const d = formatDateReadable(r.fecha || r.FECHA);
         if (d === '-') return;
@@ -4184,7 +4406,7 @@ function exportDashboardControlsReport() {
                         <img src="data:image/png;base64,${LOGO_BASE64}" style="width: 125px; height: 47px; display: block; border: none; margin: 0;" />
                     </td>
                     <td style="text-align: center; vertical-align: middle; height: 65px; padding: 0;">
-                        <div style="font-size: 15pt; font-weight: bold; font-family: 'Century Gothic', Arial, sans-serif; letter-spacing: 0.5px; color: #E2001A; line-height: 1.2; text-transform: uppercase;">MATRIZ DE SEGUIMIENTO DE CONTROLES</div>
+                        <div style="font-size: 14pt; font-weight: bold; font-family: 'Century Gothic', Arial, sans-serif; letter-spacing: 0.5px; color: #E2001A; line-height: 1.2; text-transform: uppercase;">MATRIZ DE SEGUIMIENTO DE CONTROLES - ${currentPlanta === 'TODAS' ? 'CONSOLIDADO GENERAL' : 'PLANTA ' + currentPlanta}</div>
                         <div style="font-size: 9pt; font-weight: bold; color: #555; margin-top: 4px; text-transform: uppercase;">
                             Estructura sugerida para el reporte mensual y trazabilidad de evidencias
                         </div>
@@ -4397,6 +4619,7 @@ function initializeFotograficoControls() {
     // 1. Obtener todas las fechas con camiones registrados en Aries
     const datesWithTrucks = new Set();
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         const d = formatDateReadable(row.FECHAENTRA);
         if (d && d !== '-') datesWithTrucks.add(d);
     });
@@ -4450,11 +4673,13 @@ function populateFotograficoMonthFilter() {
     const monthsSet = new Set();
     if (appData.seguimiento_fotografico) {
         appData.seguimiento_fotografico.forEach(r => {
+            if (!isRecordInActivePlanta(r)) return;
             const d = formatDateReadable(r.fecha || r.FECHA);
             if (d && d !== '-') monthsSet.add(d.substring(0, 7));
         });
     }
     appData.aries.forEach(r => {
+        if (!isRecordInActivePlanta(r)) return;
         const d = formatDateReadable(r.FECHAENTRA);
         if (d && d !== '-') monthsSet.add(d.substring(0, 7));
     });
@@ -4485,6 +4710,7 @@ function onFotograficoDateChange(dateStr) {
     let transfTrucks = 0;
 
     appData.aries.forEach(row => {
+        if (!isRecordInActivePlanta(row)) return;
         if (formatDateReadable(row.FECHAENTRA) === dateStr) {
             const pesoArtic = Number(row.PESOARTIC);
             if (pesoArtic === 1) {
@@ -4501,7 +4727,7 @@ function onFotograficoDateChange(dateStr) {
     if (elTotalTransf) elTotalTransf.value = transfTrucks;
 
     // Buscar si ya existe un registro guardado para este día
-    const existing = (appData.seguimiento_fotografico || []).find(r => formatDateReadable(r.fecha || r.FECHA) === dateStr);
+    const existing = (appData.seguimiento_fotografico || []).find(r => formatDateReadable(r.fecha || r.FECHA) === dateStr && isRecordInActivePlanta(r));
     const badge = document.getElementById('foto-status-badge');
 
     if (existing) {
@@ -4582,7 +4808,10 @@ function saveSeguimientoFotografico() {
     const responsable = document.getElementById('foto-responsable').value.trim() || 'Karen Quijije';
     const observacion = document.getElementById('foto-obs').value.trim();
 
+    const targetPlanta = (currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
+    if (!assertPlantaPermission(targetPlanta, 'guardar seguimiento fotográfico')) return;
     const payload = {
+        planta: targetPlanta,
         fecha: dateStr,
         compras_total: totalCompras,
         fotos_compras: fotosCompras,
@@ -4618,7 +4847,7 @@ function saveSeguimientoFotografico() {
         showToast('Seguimiento fotográfico guardado con éxito en Supabase', 'success');
 
         // Actualizar datos locales de inmediato
-        const existingIdx = (appData.seguimiento_fotografico || []).findIndex(r => formatDateReadable(r.fecha || r.FECHA) === dateStr);
+        const existingIdx = (appData.seguimiento_fotografico || []).findIndex(r => formatDateReadable(r.fecha || r.FECHA) === dateStr && (r.planta || 'MANTA').toUpperCase() === targetPlanta);
         if (existingIdx !== -1) {
             appData.seguimiento_fotografico[existingIdx] = payload;
         } else {
@@ -4638,7 +4867,7 @@ function saveSeguimientoFotografico() {
 }
 
 function updateFotograficoKPIs(targetMonth) {
-    const list = appData.seguimiento_fotografico || [];
+    const list = (appData.seguimiento_fotografico || []).filter(r => isRecordInActivePlanta(r));
     const now = new Date();
     const currentMonth = (targetMonth && targetMonth !== 'all') 
         ? targetMonth 
@@ -4702,7 +4931,7 @@ function renderFotograficoTrendChart() {
 
     if (charts.fotoTrend) charts.fotoTrend.destroy();
 
-    const list = [...(appData.seguimiento_fotografico || [])].sort((a, b) => {
+    const list = [...(appData.seguimiento_fotografico || []).filter(r => isRecordInActivePlanta(r))].sort((a, b) => {
         const da = new Date(a.fecha || a.FECHA);
         const db = new Date(b.fecha || b.FECHA);
         return da - db;
@@ -4808,7 +5037,7 @@ function renderFotograficoTable() {
     const select = document.getElementById('foto-history-month');
     const selectedMonth = select ? select.value : 'all';
 
-    let list = [...(appData.seguimiento_fotografico || [])];
+    let list = [...(appData.seguimiento_fotografico || []).filter(r => isRecordInActivePlanta(r))];
     if (selectedMonth !== 'all') {
         list = list.filter(r => {
             const d = formatDateReadable(r.fecha || r.FECHA);
@@ -5023,6 +5252,19 @@ function handleSyncFileSelect(event) {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+            
+            // Auto-detección inteligente de Planta por nombre de hoja o archivo
+            const sheetNames = workbook.SheetNames || [];
+            const sheetLower = sheetNames.map(s => s.toLowerCase());
+            const fnLower = (file.name || '').toLowerCase();
+            if (sheetLower.some(s => s.includes('balzar')) || fnLower.includes('balzar')) {
+                setSyncPlanta('BALZAR');
+                showToast('Detectada hoja/archivo de Planta Balzar. Planta destino: BALZAR', 'info');
+            } else if (sheetLower.some(s => s.includes('manta')) || fnLower.includes('manta')) {
+                setSyncPlanta('MANTA');
+                showToast('Detectada hoja/archivo de Planta Manta. Planta destino: MANTA', 'info');
+            }
+
             lastLoadedSyncWorkbook = { workbook, fileName: file.name };
             processExcelSyncWorkbook(workbook, file.name);
         } catch(err) {
@@ -5037,8 +5279,13 @@ function processExcelSyncWorkbook(workbook, fileName) {
     const isRecep = (currentSyncMode === 'recepciones');
 
     if (isRecep) {
-        // Buscar hoja de recepciones
-        let ariesSheet = workbook.Sheets['Ingreso Manta'] || workbook.Sheets['Ingreso Balzar'] || workbook.Sheets['Aries'];
+        // Buscar hoja de recepciones según planta destino
+        let ariesSheet = null;
+        if (currentSyncPlanta === 'BALZAR') {
+            ariesSheet = workbook.Sheets['Ingreso Balzar'] || workbook.Sheets['Balzar'] || workbook.Sheets['Aries'] || workbook.Sheets['Ingreso Manta'];
+        } else {
+            ariesSheet = workbook.Sheets['Ingreso Manta'] || workbook.Sheets['Manta'] || workbook.Sheets['Aries'] || workbook.Sheets['Ingreso Balzar'];
+        }
         if (!ariesSheet) {
             const sheetNames = workbook.SheetNames || [];
             const matchedName = sheetNames.find(n => /ingreso|aries|recepcion/i.test(n));
@@ -5063,6 +5310,7 @@ function processExcelSyncWorkbook(workbook, fileName) {
             const placaStr = r.PLACAST || r.placast || r.PLACA || r.placa || r.PLACA_VEHI || null;
 
             recepcionesPayload.push({
+                planta: currentSyncPlanta,
                 ticketpeso: Number(ticket),
                 fechaentra: fEntra,
                 horaentra: r.HORAENTRA ? String(r.HORAENTRA).substring(0, 20) : null,
@@ -5164,6 +5412,7 @@ function processExcelSyncWorkbook(workbook, fileName) {
             const impRealVal = (r.IMP_REAL !== undefined && r.IMP_REAL !== null && r.IMP_REAL !== '') ? Number(r.IMP_REAL) : null;
 
             calidadPayload.push({
+                planta: currentSyncPlanta,
                 ticketpeso: Number(ticket),
                 centro_ope: r.CENTRO_OPE || null,
                 fechaentra: fEntra,
@@ -5245,6 +5494,17 @@ async function executeExcelSyncToSupabase() {
 
     const mode = excelSyncParsedData.mode || currentSyncMode;
     const isRecep = (mode === 'recepciones');
+    const syncTargetPlanta = currentSyncPlanta || 'MANTA';
+
+    // Verificación estricta de permisos por planta (para módulo de usuarios)
+    if (!assertPlantaPermission(syncTargetPlanta, 'cargar datos')) {
+        const btnModal = document.getElementById('btn-execute-sync');
+        const btnTab = document.getElementById('btn-tab-execute-sync');
+        if (btnModal) btnModal.disabled = false;
+        if (btnTab) btnTab.disabled = false;
+        return;
+    }
+
     const endpoint = isRecep ? `${SUPABASE_URL}/rest/v1/recepciones` : `${SUPABASE_URL}/rest/v1/calidad`;
     const tableName = isRecep ? 'recepciones' : 'calidad';
     const items = excelSyncParsedData.data;
@@ -5317,8 +5577,8 @@ async function executeExcelSyncToSupabase() {
         if (tabPLabel) tabPLabel.innerText = completeMsg;
 
         const successMsg = isRecep 
-            ? `¡Se sincronizaron con éxito ${items.length} recepciones en Supabase!`
-            : `¡Se sincronizaron con éxito ${items.length} análisis de calidad en Supabase!`;
+            ? `¡Se sincronizaron con éxito ${items.length} recepciones de Planta ${syncTargetPlanta} en Supabase!`
+            : `¡Se sincronizaron con éxito ${items.length} análisis de calidad de Planta ${syncTargetPlanta} en Supabase!`;
         showToast(successMsg, 'success');
 
         setTimeout(() => {

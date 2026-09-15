@@ -184,13 +184,25 @@
                 <div style="display: flex; align-items: center; gap: 14px;">
                     <img src="Logo.png" alt="Pronaca" style="height: 48px; object-fit: contain;">
                     <div style="text-align: left; border-left: 2px solid #E2E8F0; padding-left: 14px;">
-                        <span style="font-size: 0.75rem; font-weight: 800; color: #E2001A; text-transform: uppercase; letter-spacing: 0.06em; display: block;">Planta Manta • Control de Calidad</span>
+                        <span id="landing-plant-label" style="font-size: 0.75rem; font-weight: 800; color: #E2001A; text-transform: uppercase; letter-spacing: 0.06em; display: block;">Planta Manta • Control de Calidad</span>
                         <span style="font-size: 0.82rem; color: #64748B; font-weight: 600;">División Agropecuaria & Granos</span>
                     </div>
                 </div>
-                <div class="landing-brand-badge" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; background: rgba(16, 185, 129, 0.1); color: #059669; border-radius: 20px; font-size: 0.8rem; font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.2);">
-                    <span class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10B981; display: inline-block; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);"></span>
-                    Base de Datos en Línea • Supabase Cloud
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div style="display: inline-flex; align-items: center; gap: 8px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 4px 10px;">
+                        <label for="landing-planta-select" style="font-size: 0.75rem; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 5px;">
+                            <i class="fa-solid fa-building" style="color: #E2001A;"></i> Planta:
+                        </label>
+                        <select id="landing-planta-select" onchange="onGlobalPlantaChange(this.value)" style="border: none; background: transparent; font-weight: 700; font-size: 0.82rem; color: #0F172A; cursor: pointer; outline: none;">
+                            <option value="MANTA">📍 Planta Manta</option>
+                            <option value="BALZAR">📍 Planta Balzar</option>
+                            <option value="TODAS">🌐 Consolidado (Ambas)</option>
+                        </select>
+                    </div>
+                    <div class="landing-brand-badge" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; background: rgba(16, 185, 129, 0.1); color: #059669; border-radius: 20px; font-size: 0.8rem; font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.2);">
+                        <span class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10B981; display: inline-block; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);"></span>
+                        Base de Datos en Línea • Supabase Cloud
+                    </div>
                 </div>
             </div>
 
@@ -327,10 +339,22 @@
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-brand" onclick="showLandingScreen()">
-                <div class="sidebar-logo"><i class="fa-solid fa-tractor"></i> MANTA</div>
+                <div class="sidebar-logo"><i class="fa-solid fa-tractor"></i> <span id="sidebar-plant-label">MANTA</span></div>
                 <div id="sync-status-pill" class="sync-status-pill offline">
                     <i class="fa-solid fa-circle"></i> <span>Sin Conexión</span>
                 </div>
+            </div>
+
+            <!-- Selector de Planta Global en Sidebar -->
+            <div class="sidebar-planta-box" style="padding: 10px 14px; margin: 0 12px 14px 12px; background: rgba(255, 255, 255, 0.06); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12);">
+                <label for="global-planta-select" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94A3B8; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-weight: 700;">
+                    <i class="fa-solid fa-building"></i> Centro Activo:
+                </label>
+                <select id="global-planta-select" onchange="onGlobalPlantaChange(this.value)" style="width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2); background: #1E293B; color: #F8FAFC; font-weight: 700; font-size: 0.82rem; cursor: pointer; outline: none;">
+                    <option value="MANTA">📍 Planta Manta</option>
+                    <option value="BALZAR">📍 Planta Balzar</option>
+                    <option value="TODAS">🌐 Consolidado (Ambas)</option>
+                </select>
             </div>
             
             <div class="sidebar-menu">
@@ -378,8 +402,16 @@
                         <h1>Dashboard de Avance</h1>
                         <p>Monitoreo en tiempo real de recepción, calidad y logística de maíz.</p>
                     </div>
-                    <!-- Filtro por Mes y Botón de PDF -->
+                    <!-- Filtros y Botón de PDF -->
                     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <div class="action-filter-group" style="display: flex; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 12px; gap: 8px;">
+                            <label for="dashboard-planta-filter" style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-building"></i> Planta:</label>
+                            <select id="dashboard-planta-filter" onchange="onGlobalPlantaChange(this.value)" style="border: none; background: transparent; font-family: inherit; font-size: 0.85rem; color: var(--text-main); outline: none; cursor: pointer; font-weight: 700;">
+                                <option value="MANTA">📍 Planta Manta</option>
+                                <option value="BALZAR">📍 Planta Balzar</option>
+                                <option value="TODAS">🌐 Consolidado</option>
+                            </select>
+                        </div>
                         <div class="action-filter-group" style="display: flex; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 12px; gap: 8px;">
                             <label for="dashboard-month-filter" style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-filter"></i> Filtrar Mes:</label>
                             <select id="dashboard-month-filter" onchange="filterDashboardByMonth()" style="border: none; background: transparent; font-family: inherit; font-size: 0.85rem; color: var(--text-main); outline: none; cursor: pointer; min-width: 140px;">
@@ -1146,14 +1178,32 @@
                     </div>
                 </div>
 
-                <!-- Selector Principal de Tabla: Rojo (Recepciones) / Azul (Calidad) -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; background: #F1F5F9; padding: 6px; border-radius: 12px;">
-                    <button id="sync-tab-mode-recep" type="button" onclick="setSyncMode('recepciones')" style="height: 48px; border: none; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; background: #EF4444; color: white; transition: var(--transition); box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);">
-                        <i class="fa-solid fa-truck" style="font-size: 1.1rem;"></i> 1. Actualizar Tabla Recepciones (Rojo)
-                    </button>
-                    <button id="sync-tab-mode-calid" type="button" onclick="setSyncMode('calidad')" style="height: 48px; border: none; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; background: transparent; color: #64748B; transition: var(--transition);">
-                        <i class="fa-solid fa-vial" style="font-size: 1.1rem;"></i> 2. Actualizar Tabla Calidad (Azul)
-                    </button>
+                <!-- Selector Principal de Planta Destino y Tabla -->
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+                    <!-- Selector de Planta Destino -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 18px; flex-wrap: wrap; gap: 12px;">
+                        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-building-circle-check" style="color: #E2001A;"></i> Planta Destino de la Carga:
+                        </span>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #F1F5F9; padding: 4px; border-radius: 8px; min-width: 320px;">
+                            <button id="sync-tab-planta-manta" type="button" onclick="setSyncPlanta('MANTA')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; background: #0F172A; color: white; transition: var(--transition);">
+                                <i class="fa-solid fa-location-dot" style="color: #38BDF8;"></i> Planta Manta
+                            </button>
+                            <button id="sync-tab-planta-balzar" type="button" onclick="setSyncPlanta('BALZAR')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: #64748B; transition: var(--transition);">
+                                <i class="fa-solid fa-location-dot" style="color: #F59E0B;"></i> Planta Balzar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Selector Principal de Tabla: Rojo (Recepciones) / Azul (Calidad) -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background: #F1F5F9; padding: 6px; border-radius: 12px;">
+                        <button id="sync-tab-mode-recep" type="button" onclick="setSyncMode('recepciones')" style="height: 48px; border: none; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; background: #EF4444; color: white; transition: var(--transition); box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);">
+                            <i class="fa-solid fa-truck" style="font-size: 1.1rem;"></i> 1. Actualizar Tabla Recepciones (Rojo)
+                        </button>
+                        <button id="sync-tab-mode-calid" type="button" onclick="setSyncMode('calidad')" style="height: 48px; border: none; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; background: transparent; color: #64748B; transition: var(--transition);">
+                            <i class="fa-solid fa-vial" style="font-size: 1.1rem;"></i> 2. Actualizar Tabla Calidad (Azul)
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Contenedor Principal de Carga -->
@@ -1357,6 +1407,21 @@
             </div>
             <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; padding-top: 14px;">
                 
+                <!-- Selector de Planta Destino (Manta / Balzar) -->
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.04em;">
+                        <i class="fa-solid fa-building-circle-check"></i> Centro / Planta de Destino:
+                    </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #e2e8f0; padding: 4px; border-radius: 8px;">
+                        <button id="btn-sync-planta-manta" type="button" onclick="setSyncPlanta('MANTA')" style="height: 36px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: #0f172a; color: white; transition: var(--transition);">
+                            <i class="fa-solid fa-location-dot" style="color: #38bdf8;"></i> Planta Manta
+                        </button>
+                        <button id="btn-sync-planta-balzar" type="button" onclick="setSyncPlanta('BALZAR')" style="height: 36px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: transparent; color: #475569; transition: var(--transition);">
+                            <i class="fa-solid fa-location-dot" style="color: #f59e0b;"></i> Planta Balzar
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Selector de Tabla Destino (Rojo Recepciones / Azul Calidad) -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f1f5f9; padding: 4px; border-radius: 8px;">
                     <button id="btn-mode-recep" type="button" onclick="setSyncMode('recepciones')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: #EF4444; color: white; transition: var(--transition);">
@@ -1422,6 +1487,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=5.2"></script>
+    <script src="app.js?v=5.3"></script>
 </body>
 </html>
