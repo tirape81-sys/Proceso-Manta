@@ -19,12 +19,258 @@ let pendingTab = null; // Track which tab was clicked before file upload
 let currentPlanta = localStorage.getItem('balzar_current_planta') || 'MANTA';
 let currentSyncPlanta = 'MANTA';
 
-// Estructura de sesión del usuario actual (preparada para el módulo de usuarios)
-let currentUserSession = {
-    username: 'admin',
-    role: 'ADMIN', // 'ADMIN', 'OPERADOR_MANTA', 'OPERADOR_BALZAR', 'AUDITOR'
-    allowedPlantas: ['MANTA', 'BALZAR'] // Permisos asignados por planta
-};
+// ==========================================================================
+// MÓDULO DE USUARIOS Y CONTROL DE ACCESO (MANTA / BALZAR / ADMIN)
+// ==========================================================================
+const DEFAULT_SEED_USERS = [
+    {
+        id: 1,
+        username: 'admin',
+        password: 'admin123',
+        nombre_completo: 'Administrador General',
+        rol: 'ADMIN',
+        planta_asignada: 'TODAS',
+        activo: true
+    },
+    {
+        id: 2,
+        username: 'operador_manta',
+        password: 'manta123',
+        nombre_completo: 'Operador Planta Manta',
+        rol: 'OPERADOR_MANTA',
+        planta_asignada: 'MANTA',
+        activo: true
+    },
+    {
+        id: 3,
+        username: 'operador_balzar',
+        password: 'balzar123',
+        nombre_completo: 'Operador Planta Balzar',
+        rol: 'OPERADOR_BALZAR',
+        planta_asignada: 'BALZAR',
+        activo: true
+    },
+    {
+        id: 4,
+        username: 'auditor',
+        password: 'auditor123',
+        nombre_completo: 'Auditor de Calidad',
+        rol: 'AUDITOR',
+        planta_asignada: 'TODAS',
+        activo: true
+    }
+];
+
+let systemUsers = [];
+let currentUserSession = null;
+let isSupabaseUsersConnected = false;
+
+/**
+ * Inicializa la sesión de usuario y la lista de usuarios del sistema
+ */
+function initAuthSession() {
+    // 1. Cargar usuarios locales o iniciales
+    const cachedUsers = localStorage.getItem('balzar_system_users');
+    if (cachedUsers) {
+        try {
+            systemUsers = JSON.parse(cachedUsers);
+            if (!Array.isArray(systemUsers) || systemUsers.length === 0) {
+                systemUsers = [...DEFAULT_SEED_USERS];
+            }
+        } catch(e) {
+            systemUsers = [...DEFAULT_SEED_USERS];
+        }
+    } else {
+        systemUsers = [...DEFAULT_SEED_USERS];
+        localStorage.setItem('balzar_system_users', JSON.stringify(systemUsers));
+    }
+
+    // 2. Verificar sesión activa previa
+    const savedSession = localStorage.getItem('balzar_user_session');
+    if (savedSession) {
+        try {
+            currentUserSession = JSON.parse(savedSession);
+        } catch(e) {
+            currentUserSession = null;
+        }
+    }
+
+    const overlay = document.getElementById('login-overlay');
+    if (currentUserSession) {
+        if (overlay) overlay.style.display = 'none';
+        applyUserSessionPermissions();
+    } else {
+        if (overlay) overlay.style.display = 'flex';
+    }
+
+    // 3. Sincronizar catálogo con Supabase en segundo plano
+    fetchSystemUsersFromSupabase();
+}
+
+/**
+ * Autentica al usuario en el formulario de login
+ */
+function submitLogin() {
+    const userInp = document.getElementById('login-username');
+    const passInp = document.getElementById('login-password');
+    const errDiv = document.getElementById('login-error');
+
+    const u = (userInp ? userInp.value : '').trim();
+    const p = (passInp ? passInp.value : '').trim();
+
+    if (!u || !p) {
+        if (errDiv) {
+            errDiv.innerText = 'Por favor complete todos los campos.';
+            errDiv.style.display = 'block';
+        }
+        return;
+    }
+
+    // Buscar en el catálogo de usuarios
+    const found = systemUsers.find(item => item.username.toLowerCase() === u.toLowerCase() && String(item.password) === String(p));
+
+    if (found) {
+        if (found.activo === false) {
+            if (errDiv) {
+                errDiv.innerText = 'Este usuario ha sido desactivado por el administrador.';
+                errDiv.style.display = 'block';
+            }
+            return;
+        }
+
+        currentUserSession = {
+            id: found.id,
+            username: found.username,
+            nombre_completo: found.nombre_completo,
+            role: found.rol,
+            planta_asignada: found.planta_asignada,
+            allowedPlantas: found.rol === 'ADMIN' ? ['MANTA', 'BALZAR', 'TODAS'] : [found.planta_asignada]
+        };
+
+        localStorage.setItem('balzar_user_session', JSON.stringify(currentUserSession));
+        if (errDiv) errDiv.style.display = 'none';
+
+        const overlay = document.getElementById('login-overlay');
+        if (overlay) overlay.style.display = 'none';
+
+        applyUserSessionPermissions();
+        showToast(`Bienvenido/a ${currentUserSession.nombre_completo}`, 'success');
+
+        updateUserLastAccess(found.id);
+    } else {
+        if (errDiv) {
+            errDiv.innerText = 'Usuario o contraseña incorrectos.';
+            errDiv.style.display = 'block';
+        }
+        if (passInp) passInp.value = '';
+    }
+}
+
+/**
+ * Rellena credenciales para pruebas rápidas
+ */
+function fillQuickLogin(u, p) {
+    const userInp = document.getElementById('login-username');
+    const passInp = document.getElementById('login-password');
+    if (userInp) userInp.value = u;
+    if (passInp) passInp.value = p;
+    submitLogin();
+}
+
+/**
+ * Cierra la sesión activa del usuario
+ */
+function logoutUser() {
+    if (confirm('¿Desea cerrar la sesión actual?')) {
+        currentUserSession = null;
+        localStorage.removeItem('balzar_user_session');
+        const overlay = document.getElementById('login-overlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            const userInp = document.getElementById('login-username');
+            const passInp = document.getElementById('login-password');
+            const errDiv = document.getElementById('login-error');
+            if (userInp) userInp.value = '';
+            if (passInp) passInp.value = '';
+            if (errDiv) errDiv.style.display = 'none';
+        }
+    }
+}
+
+/**
+ * Aplica los permisos de sesión: segmenta plantas, oculta o muestra opciones según el rol
+ */
+function applyUserSessionPermissions() {
+    if (!currentUserSession) return;
+
+    const isAdmin = (currentUserSession.role === 'ADMIN');
+    const userPlant = currentUserSession.planta_asignada;
+
+    // 1. Actualizar badges en interfaz
+    const landingUserName = document.getElementById('landing-user-name');
+    const landingUserRole = document.getElementById('landing-user-role');
+    const sidebarUserName = document.getElementById('sidebar-user-name');
+    const sidebarUserRole = document.getElementById('sidebar-user-role');
+
+    if (landingUserName) landingUserName.innerText = currentUserSession.username;
+    if (landingUserRole) landingUserRole.innerText = currentUserSession.role;
+    if (sidebarUserName) sidebarUserName.innerText = currentUserSession.username;
+    if (sidebarUserRole) sidebarUserRole.innerText = currentUserSession.role;
+
+    // 2. Visibilidad de módulo de usuarios (Exclusivo Administrador)
+    const navBtnUsuarios = document.getElementById('nav-btn-usuarios');
+    const landingModuleUsuarios = document.getElementById('landing-module-usuarios');
+
+    if (navBtnUsuarios) navBtnUsuarios.style.display = isAdmin ? 'flex' : 'none';
+    if (landingModuleUsuarios) landingModuleUsuarios.style.display = isAdmin ? 'flex' : 'none';
+
+    // 3. Segmentación de selectores de planta
+    const selects = [
+        document.getElementById('global-planta-select'),
+        document.getElementById('landing-planta-select'),
+        document.getElementById('dashboard-planta-filter')
+    ];
+
+    if (!isAdmin && (userPlant === 'MANTA' || userPlant === 'BALZAR')) {
+        // Bloquear permanentemente a la planta asignada
+        currentPlanta = userPlant;
+        localStorage.setItem('balzar_current_planta', currentPlanta);
+
+        selects.forEach(sel => {
+            if (!sel) return;
+            sel.value = userPlant;
+            Array.from(sel.options).forEach(opt => {
+                if (opt.value !== userPlant) {
+                    opt.disabled = true;
+                    opt.style.display = 'none';
+                } else {
+                    opt.disabled = false;
+                    opt.style.display = 'block';
+                }
+            });
+        });
+    } else {
+        // Administrador o Auditor Global: acceso a todas las opciones
+        selects.forEach(sel => {
+            if (!sel) return;
+            Array.from(sel.options).forEach(opt => {
+                opt.disabled = false;
+                opt.style.display = 'block';
+            });
+        });
+    }
+
+    syncPlantaSelectorUI();
+    updateDashboard();
+    initializeContramuestraControls();
+    if (activeTab === 'historial') {
+        initializeHistoryCalendarControls();
+        renderHistoryTable();
+    }
+    if (activeTab === 'usuarios' && isAdmin) {
+        renderUsersTable();
+    }
+}
 
 /**
  * Valida si el usuario actual tiene permisos de carga o edición para una planta
@@ -50,6 +296,310 @@ function assertPlantaPermission(targetPlanta, actionDesc = 'realizar esta acció
         return false;
     }
     return true;
+}
+
+/**
+ * Sincroniza la lista de usuarios desde la tabla de Supabase
+ */
+async function fetchSystemUsersFromSupabase() {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/usuarios?select=*&order=id.asc`, {
+            headers: SUPABASE_HEADERS
+        });
+        if (res.ok) {
+            const data = await res.json();
+            isSupabaseUsersConnected = true;
+            if (data && data.length > 0) {
+                systemUsers = data;
+                localStorage.setItem('balzar_system_users', JSON.stringify(systemUsers));
+            }
+            if (activeTab === 'usuarios') {
+                renderUsersTable();
+            }
+        } else if (res.status === 404) {
+            isSupabaseUsersConnected = false;
+            console.log('Tabla usuarios aún no existe en Supabase. Usando catálogo local.');
+        }
+    } catch(err) {
+        isSupabaseUsersConnected = false;
+        console.warn('No se pudo conectar con Supabase para usuarios:', err);
+    }
+}
+
+/**
+ * Renderiza la tabla de administración de usuarios (Exclusivo Administrador)
+ */
+function renderUsersTable(filterPlant = 'TODAS', searchTerm = '') {
+    const tbody = document.getElementById('usuarios-table-body');
+    const countBadge = document.getElementById('users-count-badge');
+    if (!tbody) return;
+
+    const term = (searchTerm || (document.getElementById('user-search-input') ? document.getElementById('user-search-input').value : '')).toLowerCase().trim();
+    const plant = filterPlant !== 'TODAS' ? filterPlant : (document.getElementById('user-filter-planta') ? document.getElementById('user-filter-planta').value : 'TODAS');
+
+    let filtered = systemUsers.filter(u => {
+        if (plant !== 'TODAS' && u.planta_asignada !== plant && u.planta_asignada !== 'TODAS') return false;
+        if (term) {
+            const matchUser = (u.username || '').toLowerCase().includes(term);
+            const matchName = (u.nombre_completo || '').toLowerCase().includes(term);
+            if (!matchUser && !matchName) return false;
+        }
+        return true;
+    });
+
+    if (countBadge) {
+        const statusHtml = isSupabaseUsersConnected 
+            ? '<span style="color: #059669; font-weight: 800;"><i class="fa-solid fa-cloud-check"></i> Supabase Cloud</span>'
+            : '<span style="color: #D97706; font-weight: 800;"><i class="fa-solid fa-database"></i> Modo Local (Pendiente SQL)</span>';
+        countBadge.innerHTML = `Total: ${filtered.length} usuario${filtered.length === 1 ? '' : 's'} • ${statusHtml}`;
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                    No se encontraron usuarios registrados.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(u => {
+        const isActivo = (u.activo !== false);
+        const roleColor = u.rol === 'ADMIN' ? '#1E293B' : (u.rol === 'OPERADOR_MANTA' ? '#047857' : (u.rol === 'OPERADOR_BALZAR' ? '#1D4ED8' : '#D97706'));
+        const plantBadge = u.planta_asignada === 'MANTA' 
+            ? '<span style="background: #ECFDF5; color: #047857; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">📍 Manta</span>'
+            : (u.planta_asignada === 'BALZAR'
+                ? '<span style="background: #EFF6FF; color: #1D4ED8; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">📍 Balzar</span>'
+                : '<span style="background: #F1F5F9; color: #334155; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">🌐 Global (Todas)</span>');
+
+        return `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+                <td style="padding: 12px 18px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 32px; height: 32px; border-radius: 50%; background: #F1F5F9; color: #475569; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <span>${u.username}</span>
+                </td>
+                <td style="padding: 12px 18px; color: #334155;">${u.nombre_completo || '-'}</td>
+                <td style="padding: 12px 18px;">
+                    <span style="background: ${roleColor}15; color: ${roleColor}; padding: 3px 8px; border-radius: 4px; font-weight: 800; font-size: 0.72rem;">
+                        ${u.rol}
+                    </span>
+                </td>
+                <td style="padding: 12px 18px;">${plantBadge}</td>
+                <td style="padding: 12px 18px;">
+                    <span style="background: ${isActivo ? '#DEF7EC' : '#FDE8E8'}; color: ${isActivo ? '#03543F' : '#9B1C1C'}; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">
+                        ${isActivo ? '● Activo' : '○ Inactivo'}
+                    </span>
+                </td>
+                <td style="padding: 12px 18px; text-align: right;">
+                    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                        <button type="button" class="btn-action" onclick="openEditUserModal(${u.id})" style="background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="Editar Usuario">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button type="button" class="btn-action" onclick="toggleUserStatus(${u.id})" style="background: ${isActivo ? '#FFFBEB' : '#ECFDF5'}; color: ${isActivo ? '#D97706' : '#047857'}; border: 1px solid ${isActivo ? '#FDE68A' : '#A7F3D0'}; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="${isActivo ? 'Desactivar' : 'Activar'}">
+                            <i class="fa-solid ${isActivo ? 'fa-user-slash' : 'fa-user-check'}"></i>
+                        </button>
+                        ${u.username !== 'admin' ? `
+                        <button type="button" class="btn-action" onclick="deleteUser(${u.id})" style="background: #FEF2F2; color: #EF4444; border: 1px solid #FECACA; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="Eliminar Usuario">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterUsersTable() {
+    renderUsersTable();
+}
+
+function openCreateUserModal() {
+    document.getElementById('modal-usuario-title').innerHTML = '<i class="fa-solid fa-user-plus" style="color: #10B981;"></i> Crear Nuevo Usuario';
+    document.getElementById('user-modal-id').value = '';
+    document.getElementById('user-modal-fullname').value = '';
+    document.getElementById('user-modal-username').value = '';
+    document.getElementById('user-modal-username').disabled = false;
+    document.getElementById('user-modal-password').value = '';
+    document.getElementById('user-modal-rol').value = 'OPERADOR_MANTA';
+    document.getElementById('user-modal-planta').value = 'MANTA';
+    document.getElementById('user-modal-activo').checked = true;
+
+    const modal = document.getElementById('modal-usuario');
+    if (modal) modal.style.display = 'flex';
+}
+
+function openEditUserModal(id) {
+    const user = systemUsers.find(u => Number(u.id) === Number(id));
+    if (!user) return;
+
+    document.getElementById('modal-usuario-title').innerHTML = '<i class="fa-solid fa-user-pen" style="color: #0284C7;"></i> Editar Usuario';
+    document.getElementById('user-modal-id').value = user.id;
+    document.getElementById('user-modal-fullname').value = user.nombre_completo || '';
+    document.getElementById('user-modal-username').value = user.username || '';
+    document.getElementById('user-modal-username').disabled = (user.username === 'admin');
+    document.getElementById('user-modal-password').value = user.password || '';
+    document.getElementById('user-modal-rol').value = user.rol || 'OPERADOR_MANTA';
+    document.getElementById('user-modal-planta').value = user.planta_asignada || 'MANTA';
+    document.getElementById('user-modal-activo').checked = (user.activo !== false);
+
+    const modal = document.getElementById('modal-usuario');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeUserModal() {
+    const modal = document.getElementById('modal-usuario');
+    if (modal) modal.style.display = 'none';
+}
+
+function onUserModalRoleChange(role) {
+    const plantaSel = document.getElementById('user-modal-planta');
+    if (!plantaSel) return;
+    if (role === 'ADMIN' || role === 'AUDITOR') {
+        plantaSel.value = 'TODAS';
+    } else if (role === 'OPERADOR_MANTA') {
+        plantaSel.value = 'MANTA';
+    } else if (role === 'OPERADOR_BALZAR') {
+        plantaSel.value = 'BALZAR';
+    }
+}
+
+async function saveUserFromModal() {
+    const id = document.getElementById('user-modal-id').value;
+    const fullname = document.getElementById('user-modal-fullname').value.trim();
+    const username = document.getElementById('user-modal-username').value.trim();
+    const password = document.getElementById('user-modal-password').value.trim();
+    const rol = document.getElementById('user-modal-rol').value;
+    const planta = document.getElementById('user-modal-planta').value;
+    const activo = document.getElementById('user-modal-activo').checked;
+
+    if (!fullname || !username || !password) {
+        showToast('Por favor complete todos los campos requeridos', 'warning');
+        return;
+    }
+
+    const isEdit = Boolean(id);
+
+    if (!isEdit) {
+        if (systemUsers.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+            showToast('El nombre de usuario ya está registrado', 'danger');
+            return;
+        }
+    }
+
+    const payload = {
+        nombre_completo: fullname,
+        username: username,
+        password: password,
+        rol: rol,
+        planta_asignada: planta,
+        activo: activo
+    };
+
+    try {
+        const url = isEdit 
+            ? `${SUPABASE_URL}/rest/v1/usuarios?id=eq.${id}`
+            : `${SUPABASE_URL}/rest/v1/usuarios`;
+        const method = isEdit ? 'PATCH' : 'POST';
+
+        const res = await fetch(url, {
+            method: method,
+            headers: {
+                ...SUPABASE_HEADERS,
+                'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            showToast(`Usuario ${isEdit ? 'actualizado' : 'creado'} en Supabase con éxito`, 'success');
+            await fetchSystemUsersFromSupabase();
+        } else {
+            saveUserLocal(isEdit, id, payload);
+        }
+    } catch(e) {
+        saveUserLocal(isEdit, id, payload);
+    }
+
+    closeUserModal();
+    renderUsersTable();
+}
+
+function saveUserLocal(isEdit, id, payload) {
+    if (isEdit) {
+        const idx = systemUsers.findIndex(u => Number(u.id) === Number(id));
+        if (idx !== -1) {
+            systemUsers[idx] = { ...systemUsers[idx], ...payload };
+        }
+    } else {
+        const newId = (systemUsers.length > 0 ? Math.max(...systemUsers.map(u => Number(u.id) || 0)) + 1 : 1);
+        systemUsers.push({ id: newId, ...payload });
+    }
+    localStorage.setItem('balzar_system_users', JSON.stringify(systemUsers));
+    showToast(`Usuario ${isEdit ? 'actualizado' : 'creado'} con éxito (modo local)`, 'info');
+}
+
+async function toggleUserStatus(id) {
+    const user = systemUsers.find(u => Number(u.id) === Number(id));
+    if (!user) return;
+    if (user.username === 'admin') {
+        showToast('No se puede desactivar al usuario administrador principal', 'warning');
+        return;
+    }
+
+    const newStatus = !(user.activo !== false);
+    user.activo = newStatus;
+
+    try {
+        await fetch(`${SUPABASE_URL}/rest/v1/usuarios?id=eq.${id}`, {
+            method: 'PATCH',
+            headers: SUPABASE_HEADERS,
+            body: JSON.stringify({ activo: newStatus })
+        });
+    } catch(e) {}
+
+    localStorage.setItem('balzar_system_users', JSON.stringify(systemUsers));
+    showToast(`Usuario ${newStatus ? 'activado' : 'desactivado'}`, 'info');
+    renderUsersTable();
+}
+
+async function deleteUser(id) {
+    const user = systemUsers.find(u => Number(u.id) === Number(id));
+    if (!user) return;
+    if (user.username === 'admin') {
+        showToast('No se puede eliminar al usuario administrador principal', 'warning');
+        return;
+    }
+
+    if (!confirm(`¿Está seguro de eliminar permanentemente al usuario '${user.username}'?`)) {
+        return;
+    }
+
+    try {
+        await fetch(`${SUPABASE_URL}/rest/v1/usuarios?id=eq.${id}`, {
+            method: 'DELETE',
+            headers: SUPABASE_HEADERS
+        });
+    } catch(e) {}
+
+    systemUsers = systemUsers.filter(u => Number(u.id) !== Number(id));
+    localStorage.setItem('balzar_system_users', JSON.stringify(systemUsers));
+    showToast(`Usuario '${user.username}' eliminado con éxito`, 'success');
+    renderUsersTable();
+}
+
+async function updateUserLastAccess(userId) {
+    try {
+        await fetch(`${SUPABASE_URL}/rest/v1/usuarios?id=eq.${userId}`, {
+            method: 'PATCH',
+            headers: SUPABASE_HEADERS,
+            body: JSON.stringify({ ultimo_acceso: new Date().toISOString() })
+        });
+    } catch(e) {}
 }
 
 /**
@@ -96,7 +646,19 @@ function syncPlantaSelectorUI() {
  */
 function onGlobalPlantaChange(newPlanta) {
     if (!newPlanta) return;
-    currentPlanta = newPlanta.toUpperCase();
+    const requested = newPlanta.toUpperCase();
+
+    // Verificación estricta de permisos por rol
+    if (currentUserSession && currentUserSession.role !== 'ADMIN') {
+        const allowed = (currentUserSession.planta_asignada || '').toUpperCase();
+        if (allowed && allowed !== 'TODAS' && requested !== allowed) {
+            showToast(`Acceso restringido: Su cuenta solo tiene permisos para visualizar Planta ${allowed}.`, 'danger');
+            syncPlantaSelectorUI();
+            return;
+        }
+    }
+
+    currentPlanta = requested;
     localStorage.setItem('balzar_current_planta', currentPlanta);
     syncPlantaSelectorUI();
     
@@ -109,6 +671,7 @@ function onGlobalPlantaChange(newPlanta) {
     initializeContramuestraControls();
     
     if (activeTab === 'historial') {
+        initializeHistoryCalendarControls();
         renderHistoryTable();
     }
     if (activeTab === 'antimicotico') {
@@ -164,34 +727,9 @@ function setSyncPlanta(planta) {
     }
 }
 
-// Web Login Security
-window.checkLoginPassword = function() {
-    const passInput = document.getElementById('login-pass');
-    const pass = passInput ? passInput.value.trim() : '';
-    if (pass === "Calidad2026") {
-        try {
-            sessionStorage.setItem('isCalidadAuthorized', 'true');
-        } catch(e) {
-            console.warn('SessionStorage no disponible:', e);
-        }
-        const overlay = document.getElementById('login-overlay');
-        if (overlay) overlay.style.display = 'none';
-    } else {
-        const errorEl = document.getElementById('login-error');
-        if (errorEl) errorEl.style.display = 'block';
-        if (passInput) passInput.value = '';
-    }
-};
-
 // Initialize Drag & Drop Events on Load
 document.addEventListener('DOMContentLoaded', () => {
-    // Verify security login session
-    try {
-        if (sessionStorage.getItem('isCalidadAuthorized') === 'true') {
-            const overlay = document.getElementById('login-overlay');
-            if (overlay) overlay.style.display = 'none';
-        }
-    } catch(e) {}
+    initAuthSession();
     syncPlantaSelectorUI();
     setSyncPlanta(currentPlanta === 'TODAS' ? 'MANTA' : currentPlanta);
     setupDragAndDrop();
@@ -740,6 +1278,13 @@ function switchTab(tab) {
         const cBalzar = (appData.calidad || []).filter(r => (r.planta || '').toUpperCase() === 'BALZAR').length;
         if (elRecep) elRecep.innerText = `${(appData.aries || []).length} boletos (Manta: ${rManta} | Balzar: ${rBalzar})`;
         if (elCalid) elCalid.innerText = `${(appData.calidad || []).length} análisis (Manta: ${cManta} | Balzar: ${cBalzar})`;
+    } else if (tab === 'usuarios') {
+        if (!currentUserSession || currentUserSession.role !== 'ADMIN') {
+            showToast('Acceso restringido: Solo el Administrador puede gestionar usuarios.', 'danger');
+            switchTab('dashboard');
+            return;
+        }
+        renderUsersTable();
     }
 }
 
@@ -1755,16 +2300,34 @@ function renderStatusChart(selectedMonth) {
     let aceptadosCount = 0;
     let rechazadosCount = 0;
 
-    appData.calidad.forEach(row => {
+    // Mapa rápido de calidad para verificar si hay dictamen de laboratorio
+    const calidadMap = {};
+    if (appData.calidad) {
+        appData.calidad.forEach(c => {
+            if (!isRecordInActivePlanta(c)) return;
+            const t = Number(c.TICKETPESO || c.ticketpeso);
+            if (t) calidadMap[t] = c;
+        });
+    }
+
+    // Contabilizar sobre los boletos de compra de la planta activa
+    (appData.aries || []).forEach(row => {
         if (!isRecordInActivePlanta(row)) return;
-        const dateStr = formatDateReadable(row.FECHAENTRA || row.FECHA || row.FECHACREACION);
+        const isPurchase = Number(row.PESOARTIC) === 1;
+        if (!isPurchase) return; // Solo compras tienen dictamen de aceptación o rechazo
+
+        const dateStr = formatDateReadable(row.FECHAENTRA);
         if (selectedMonth !== 'all' && dateStr && dateStr !== '-' && !dateStr.startsWith(selectedMonth)) return;
 
-        const conf = String(row.CONFIRMA || '').trim().toUpperCase();
-        if (conf.startsWith('ACEPTAD')) {
-            aceptadosCount++;
-        } else if (conf.startsWith('RECHAZA')) {
+        const ticketNo = Number(row.TICKETPESO);
+        const cal = calidadMap[ticketNo];
+        const isRej = (row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S') || 
+                      (cal && String(cal.CONFIRMA || '').toUpperCase().startsWith('RECHAZA'));
+
+        if (isRej) {
             rechazadosCount++;
+        } else {
+            aceptadosCount++;
         }
     });
 
