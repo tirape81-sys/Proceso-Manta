@@ -642,6 +642,16 @@ function syncPlantaSelectorUI() {
         sidebarPlantLabel.innerText = currentPlanta === 'TODAS' ? 'CONSOLIDADO' : currentPlanta;
     }
 
+    const sidebarPlantSubtitle = document.getElementById('sidebar-plant-subtitle');
+    if (sidebarPlantSubtitle) {
+        sidebarPlantSubtitle.innerText = currentPlanta === 'TODAS' ? 'Consolidado' : (currentPlanta === 'MANTA' ? 'Manta' : 'Balzar');
+    }
+
+    const crumbPlant = document.getElementById('dashboard-crumb-plant');
+    if (crumbPlant) {
+        crumbPlant.innerText = currentPlanta === 'TODAS' ? 'Consolidado General' : `Centro ${currentPlanta === 'MANTA' ? 'Manta' : 'Balzar'}`;
+    }
+
     const landingPlantLabel = document.getElementById('landing-plant-label');
     if (landingPlantLabel) {
         const text = currentPlanta === 'TODAS' 
@@ -1793,43 +1803,43 @@ function renderDashboardStats(selectedMonth) {
     const acceptedPurchases = purchaseCount - rejectedCount;
     const statReceived = document.getElementById('stat-received-tickets');
     const statReceivedTotal = document.getElementById('stat-received-tickets-total');
-    if (statReceived) statReceived.innerText = acceptedPurchases;
-    if (statReceivedTotal) statReceivedTotal.innerText = `Total: ${purchaseCount} boleto${purchaseCount !== 1 ? 's' : ''}`;
+    if (statReceived) statReceived.innerText = acceptedPurchases.toLocaleString('es-EC');
+    if (statReceivedTotal) statReceivedTotal.innerText = `${purchaseCount.toLocaleString('es-EC')} boletos en total`;
 
     const statRejected = document.getElementById('stat-rejected');
-    if (statRejected) statRejected.innerText = rejectedCount;
+    if (statRejected) statRejected.innerText = rejectedCount.toLocaleString('es-EC');
 
     const statContramuestras = document.getElementById('stat-contramuestras');
-    if (statContramuestras) statContramuestras.innerText = contramuestraCount;
+    if (statContramuestras) statContramuestras.innerText = contramuestraCount.toLocaleString('es-EC');
 
     const samplingPct = acceptedPurchases > 0 ? (contramuestraCount / acceptedPurchases) * 100 : 0;
     
     const statCmPct = document.getElementById('stat-contramuestras-pct');
     if (statCmPct) {
+        statCmPct.innerText = `Muestreo: ${samplingPct.toFixed(1).replace('.', ',')} %`;
         if (acceptedPurchases === 0) {
-            statCmPct.innerText = '% Muestreo: 0.0%';
-            statCmPct.style.color = 'var(--text-muted)';
+            statCmPct.style.color = '#475569';
+        } else if (samplingPct >= 40) {
+            statCmPct.style.color = '#0D766E';
         } else {
-            statCmPct.innerText = `% Muestreo: ${samplingPct.toFixed(1)}%`;
-            if (samplingPct >= 40) {
-                statCmPct.style.color = '#10B981'; // Green (Complies with 40-60% or higher target)
-            } else {
-                statCmPct.style.color = 'var(--danger)'; // Red (Under-sampled)
-            }
+            statCmPct.style.color = '#DC2626';
         }
     }
 
     const statAntiKpi = document.getElementById('stat-antimicotico-kpi');
     if (statAntiKpi) {
-        statAntiKpi.innerText = antiTotalDays > 0 ? `${antiKpiRate.toFixed(1)}%` : '-%';
         if (antiTotalDays === 0) {
-            statAntiKpi.style.color = 'var(--text-muted)';
-        } else if (antiKpiRate >= 85) {
-            statAntiKpi.style.color = '#10B981'; // verde
-        } else if (antiKpiRate >= 70) {
-            statAntiKpi.style.color = '#F59E0B'; // naranja
+            statAntiKpi.innerText = 'Sin datos';
+            statAntiKpi.style.color = '#0F172A';
         } else {
-            statAntiKpi.style.color = 'var(--danger)'; // rojo
+            statAntiKpi.innerText = `${antiKpiRate.toFixed(1).replace('.', ',')}%`;
+            if (antiKpiRate >= 85) {
+                statAntiKpi.style.color = '#0D766E';
+            } else if (antiKpiRate >= 70) {
+                statAntiKpi.style.color = '#F59E0B';
+            } else {
+                statAntiKpi.style.color = '#DC2626';
+            }
         }
     }
 
@@ -2161,63 +2171,64 @@ function renderVolumeChart(selectedMonth) {
                 {
                     label: 'Compras (Tn)',
                     data: purchaseVols,
-                    backgroundColor: 'rgba(75, 175, 79, 0.75)',
-                    borderColor: '#4BAF4F',
+                    backgroundColor: '#0D766E',
+                    borderColor: '#0D766E',
                     borderWidth: 1,
-                    borderRadius: 4,
+                    borderRadius: 3,
                     yAxisID: 'y',
                     order: 2
                 },
                 {
                     label: 'Despachos (Tn)',
                     data: dispatchVols,
-                    backgroundColor: 'rgba(227, 6, 19, 0.75)',
-                    borderColor: '#E30613',
+                    backgroundColor: '#7E22CE',
+                    borderColor: '#7E22CE',
                     borderWidth: 1,
-                    borderRadius: 4,
+                    borderRadius: 3,
                     yAxisID: 'y',
                     order: 2
                 },
                 {
-                    label: 'Adherencia Antimicótico (%)',
+                    label: 'Adherencia antimicótico (%)',
                     data: adherenceVols,
                     type: 'line',
-                    borderColor: '#F59E0B',
+                    borderColor: '#DC2626',
                     backgroundColor: 'transparent',
-                    borderWidth: 2.2,
-                    tension: 0.25,
-                    pointBackgroundColor: '#F59E0B',
+                    borderWidth: 2,
+                    tension: 0.2,
+                    pointBackgroundColor: '#DC2626',
+                    pointBorderColor: '#DC2626',
                     pointRadius: 3.5,
                     yAxisID: 'yAdherence',
                     spanGaps: true,
                     order: 1
                 },
                 {
-                    label: '% Fotos Compras',
+                    label: 'Fotos compras (%)',
                     data: fotoComprasVols,
                     type: 'line',
-                    borderColor: '#10B981',
+                    borderColor: '#0D766E',
                     backgroundColor: 'transparent',
-                    borderWidth: 2.2,
+                    borderWidth: 2,
                     borderDash: [4, 4],
-                    tension: 0.25,
-                    pointBackgroundColor: '#10B981',
+                    tension: 0.2,
+                    pointBackgroundColor: '#0D766E',
                     pointRadius: 4,
-                    pointStyle: 'circle',
+                    pointStyle: 'rect',
                     yAxisID: 'yAdherence',
                     spanGaps: true,
                     order: 1
                 },
                 {
-                    label: '% Fotos Transferencias',
+                    label: 'Fotos transferencias (%)',
                     data: fotoTransfVols,
                     type: 'line',
-                    borderColor: '#0284C7',
+                    borderColor: '#7E22CE',
                     backgroundColor: 'transparent',
-                    borderWidth: 2.2,
+                    borderWidth: 2,
                     borderDash: [2, 2],
-                    tension: 0.25,
-                    pointBackgroundColor: '#0284C7',
+                    tension: 0.2,
+                    pointBackgroundColor: '#7E22CE',
                     pointRadius: 4,
                     pointStyle: 'triangle',
                     yAxisID: 'yAdherence',
@@ -2305,8 +2316,6 @@ function renderVolumeChart(selectedMonth) {
 }
 
 function renderStatusChart(selectedMonth) {
-    if (charts.status) charts.status.destroy();
-
     let aceptadosCount = 0;
     let rechazadosCount = 0;
 
@@ -2341,59 +2350,61 @@ function renderStatusChart(selectedMonth) {
         }
     });
 
-    const labels = ['Aceptados', 'Rechazados'];
-    const counts = [aceptadosCount, rechazadosCount];
-    const colors = ['#10B981', '#EF4444'];
+    const totalBoletos = aceptadosCount + rechazadosCount;
+    const rechPct = totalBoletos > 0 ? (rechazadosCount / totalBoletos) * 100 : 0;
+    const accPct = totalBoletos > 0 ? (aceptadosCount / totalBoletos) * 100 : 100;
 
-    const ctx = document.getElementById('statusChart').getContext('2d');
-    charts.status = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: counts,
-                backgroundColor: colors,
-                borderColor: '#ffffff',
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            onClick: (event, elements) => {
-                if (elements && elements.length > 0) {
-                    const idx = elements[0].index;
-                    const clickedLabel = charts.status.data.labels[idx];
-                    if (clickedLabel === 'Aceptados') {
-                        setDashboardTableFilter('aceptados');
-                        showToast('Filtrando boletos: Solo Aceptados', 'info');
-                    } else if (clickedLabel === 'Rechazados') {
-                        setDashboardTableFilter('rechazados');
-                        showToast('Filtrando boletos: Solo Rechazados', 'info');
-                    }
-                }
+    // Actualizar visualización horizontal segmentada (Diseño Corporativo de Referencia)
+    const elPctDisplay = document.getElementById('reception-pct-display');
+    if (elPctDisplay) elPctDisplay.innerText = `${rechPct.toFixed(1).replace('.', ',')} %`;
+
+    const elBarAccepted = document.getElementById('reception-bar-accepted');
+    if (elBarAccepted) elBarAccepted.style.width = `${accPct}%`;
+
+    const elBarRejected = document.getElementById('reception-bar-rejected');
+    if (elBarRejected) elBarRejected.style.width = `${rechPct}%`;
+
+    const elCountAccepted = document.getElementById('reception-count-accepted');
+    if (elCountAccepted) elCountAccepted.innerText = aceptadosCount.toLocaleString('es-EC');
+
+    const elCountRejected = document.getElementById('reception-count-rejected');
+    if (elCountRejected) elCountRejected.innerText = rechazadosCount.toLocaleString('es-EC');
+
+    const elCountTotal = document.getElementById('reception-count-total');
+    if (elCountTotal) elCountTotal.innerText = totalBoletos.toLocaleString('es-EC');
+
+    // Soporte para canvas si aún estuviese en el DOM
+    const canvas = document.getElementById('statusChart');
+    if (canvas) {
+        if (charts.status) charts.status.destroy();
+        const ctx = canvas.getContext('2d');
+        charts.status = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Aceptados', 'Rechazados'],
+                datasets: [{
+                    data: [aceptadosCount, rechazadosCount],
+                    backgroundColor: ['#0D766E', '#DC2626'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
             },
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { 
-                        color: '#374151', 
-                        font: { family: 'Outfit', weight: '600' } 
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const total = aceptadosCount + rechazadosCount;
-                            const val = context.raw || 0;
-                            const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                            return ` ${context.label}: ${val} (${pct}%) - Clic para filtrar`;
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (event, elements) => {
+                    if (elements && elements.length > 0) {
+                        const idx = elements[0].index;
+                        if (idx === 0) {
+                            setDashboardTableFilter('aceptados');
+                        } else {
+                            setDashboardTableFilter('rechazados');
                         }
                     }
                 }
             }
-        }
-    });
+        });
+    }
 }
 
 // Helper para obtener la Humedad del Boleto (priorizando Humedad Invt de calidad)
@@ -5496,16 +5507,26 @@ function updateFotograficoKPIs(targetMonth) {
     const elDashSubCompras = document.getElementById('dash-foto-compras-sub');
     if (elDashValCompras) elDashValCompras.innerText = `${mesFotosCompras} / ${mesTotalCompras}`;
     if (elDashSubCompras) {
-        elDashSubCompras.innerText = `${pctCompras.toFixed(1)}% cumplimiento (${pctCompras >= 40 ? 'Cumple' : 'Bajo meta'})`;
-        elDashSubCompras.style.color = pctCompras >= 40 ? '#10B981' : '#EF4444';
+        if (mesTotalCompras === 0) {
+            elDashSubCompras.innerText = 'Sin registros';
+            elDashSubCompras.style.color = '#64748B';
+        } else {
+            elDashSubCompras.innerText = `${pctCompras.toFixed(1).replace('.', ',')}% cumplimiento`;
+            elDashSubCompras.style.color = pctCompras >= 40 ? '#0D766E' : '#DC2626';
+        }
     }
 
     const elDashValTransf = document.getElementById('dash-foto-transf-val');
     const elDashSubTransf = document.getElementById('dash-foto-transf-sub');
     if (elDashValTransf) elDashValTransf.innerText = `${mesFotosTransf} / ${mesTotalTransf}`;
     if (elDashSubTransf) {
-        elDashSubTransf.innerText = `${pctTransf.toFixed(1)}% cumplimiento (${pctTransf >= 40 ? 'Cumple' : 'Bajo meta'})`;
-        elDashSubTransf.style.color = pctTransf >= 40 ? '#10B981' : '#EF4444';
+        if (mesTotalTransf === 0) {
+            elDashSubTransf.innerText = 'Sin registros';
+            elDashSubTransf.style.color = '#64748B';
+        } else {
+            elDashSubTransf.innerText = `${pctTransf.toFixed(1).replace('.', ',')}% cumplimiento`;
+            elDashSubTransf.style.color = pctTransf >= 40 ? '#0D766E' : '#DC2626';
+        }
     }
 }
 

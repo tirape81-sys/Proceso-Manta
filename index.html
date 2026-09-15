@@ -369,18 +369,23 @@
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-brand" onclick="showLandingScreen()">
-                <div class="sidebar-logo"><i class="fa-solid fa-tractor"></i> <span id="sidebar-plant-label">MANTA</span></div>
-                <div id="sync-status-pill" class="sync-status-pill offline">
+                <div class="sidebar-brand-pronaca">
+                    <span class="pronaca-logo-text">PRONACA</span>
+                    <span class="pronaca-center-text" id="sidebar-plant-subtitle">Balzar</span>
+                </div>
+                <!-- Hidden tag to preserve compatibility with existing JS -->
+                <span id="sidebar-plant-label" style="display: none;">BALZAR</span>
+                <div id="sync-status-pill" class="sync-status-pill offline" style="margin-top: 8px;">
                     <i class="fa-solid fa-circle"></i> <span>Sin Conexión</span>
                 </div>
             </div>
 
             <!-- Selector de Planta Global en Sidebar -->
-            <div class="sidebar-planta-box" style="padding: 10px 14px; margin: 0 12px 10px 12px; background: rgba(255, 255, 255, 0.06); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12);">
-                <label for="global-planta-select" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94A3B8; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-weight: 700;">
-                    <i class="fa-solid fa-building"></i> Centro Activo:
+            <div class="sidebar-planta-box" style="padding: 10px 14px; margin: 0 12px 10px 12px; background: #F8FAFC; border-radius: 8px; border: 1px solid #E2E8F0;">
+                <label for="global-planta-select" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-weight: 700;">
+                    <i class="fa-solid fa-building" style="color: #0D766E;"></i> Centro Activo:
                 </label>
-                <select id="global-planta-select" onchange="onGlobalPlantaChange(this.value)" style="width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2); background: #1E293B; color: #F8FAFC; font-weight: 700; font-size: 0.82rem; cursor: pointer; outline: none;">
+                <select id="global-planta-select" onchange="onGlobalPlantaChange(this.value)" style="width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A; font-weight: 700; font-size: 0.82rem; cursor: pointer; outline: none;">
                     <option value="MANTA">📍 Planta Manta</option>
                     <option value="BALZAR">📍 Planta Balzar</option>
                     <option value="TODAS">🌐 Consolidado (Ambas)</option>
@@ -388,22 +393,22 @@
             </div>
 
             <!-- Perfil de Usuario en Sidebar -->
-            <div id="sidebar-user-box" style="padding: 8px 12px; margin: 0 12px 14px 12px; background: rgba(255, 255, 255, 0.04); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between;">
+            <div id="sidebar-user-box" style="padding: 8px 12px; margin: 0 12px 14px 12px; background: #F8FAFC; border-radius: 8px; border: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                    <i class="fa-solid fa-circle-user" style="font-size: 1.2rem; color: #94A3B8;"></i>
+                    <i class="fa-solid fa-circle-user" style="font-size: 1.2rem; color: #64748B;"></i>
                     <div style="min-width: 0; text-align: left;">
-                        <div id="sidebar-user-name" style="font-size: 0.78rem; font-weight: 700; color: #F8FAFC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">admin</div>
-                        <span id="sidebar-user-role" style="font-size: 0.65rem; font-weight: 800; color: #10B981;">ADMIN</span>
+                        <div id="sidebar-user-name" style="font-size: 0.78rem; font-weight: 700; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">admin</div>
+                        <span id="sidebar-user-role" style="font-size: 0.65rem; font-weight: 800; color: #0D766E;">ADMIN</span>
                     </div>
                 </div>
-                <button type="button" onclick="logoutUser()" title="Cerrar Sesión" style="background: transparent; border: none; color: #EF4444; cursor: pointer; padding: 4px; font-size: 0.85rem;" onmouseover="this.style.color='#F87171'" onmouseout="this.style.color='#EF4444'">
+                <button type="button" onclick="logoutUser()" title="Cerrar Sesión" style="background: transparent; border: none; color: #EF4444; cursor: pointer; padding: 4px; font-size: 0.85rem;" onmouseover="this.style.color='#DC2626'" onmouseout="this.style.color='#EF4444'">
                     <i class="fa-solid fa-power-off"></i>
                 </button>
             </div>
             
             <div class="sidebar-menu">
                 <button id="nav-btn-dashboard" class="nav-btn active" onclick="switchTab('dashboard')">
-                    <i class="fa-solid fa-chart-pie"></i> Dashboard
+                    <i class="fa-solid fa-table-cells-large"></i> Dashboard
                 </button>
                 <button id="nav-btn-contramuestra" class="nav-btn" onclick="switchTab('contramuestra')">
                     <i class="fa-solid fa-flask"></i> Registro Contramuestra
@@ -415,27 +420,27 @@
                     <i class="fa-solid fa-droplet"></i> Consumo Antimicótico
                 </button>
                 <button id="nav-btn-fotografico" class="nav-btn" onclick="switchTab('fotografico')">
-                    <i class="fa-solid fa-camera-retro"></i> Seg. Fotográfico
+                    <i class="fa-solid fa-camera"></i> Seg. Fotográfico
                 </button>
                 <button id="nav-btn-sync" class="nav-btn" onclick="switchTab('sync')">
                     <i class="fa-solid fa-cloud-arrow-up"></i> Cargar Excel
                 </button>
                 <button id="nav-btn-usuarios" class="nav-btn" onclick="switchTab('usuarios')" style="display: none;">
-                    <i class="fa-solid fa-users-gear"></i> Gestión Usuarios
+                    <i class="fa-solid fa-users"></i> Gestión Usuarios
                 </button>
             </div>
 
-            <div style="padding: 0 12px; margin-top: auto; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;">
-                <button class="btn-action" style="width: 100%; height: 34px; background: #EF4444; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25);" onclick="navigateToSync('recepciones')">
+            <div style="padding: 0 12px; margin-top: auto; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn-sidebar-recepciones" onclick="navigateToSync('recepciones')">
                     <i class="fa-solid fa-truck"></i> Act. Recepciones
                 </button>
-                <button class="btn-action" style="width: 100%; height: 34px; background: #0284c7; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);" onclick="navigateToSync('calidad')">
-                    <i class="fa-solid fa-vial"></i> Act. Calidad
+                <button class="btn-sidebar-calidad" onclick="navigateToSync('calidad')">
+                    <i class="fa-solid fa-flask"></i> Act. Calidad
                 </button>
             </div>
 
             <button class="back-to-home" onclick="showLandingScreen()">
-                <i class="fa-solid fa-house"></i> Volver a Inicio
+                <i class="fa-solid fa-house"></i> Volver al inicio
             </button>
         </aside>
 
@@ -444,139 +449,156 @@
 
             <!-- TAB 1: DASHBOARD VIEW -->
             <section id="dashboard-view" class="view-section active">
-                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+                <!-- Breadcrumb -->
+                <div class="dashboard-breadcrumb">
+                    <span>Operaciones</span> <i class="fa-solid fa-chevron-right" style="font-size: 0.65rem; color: #94A3B8;"></i> <span class="active-crumb" id="dashboard-crumb-plant">Centro Balzar</span>
+                </div>
+
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
                     <div>
-                        <h1>Dashboard de Avance</h1>
-                        <p>Monitoreo en tiempo real de recepción, calidad y logística de maíz.</p>
+                        <h1 style="font-family: var(--font-heading); font-size: 1.85rem; font-weight: 800; color: #0F172A; margin: 0 0 4px 0; letter-spacing: -0.5px;">Dashboard de Avance</h1>
+                        <p style="color: #64748B; font-size: 0.92rem; margin: 0;">Monitoreo de recepción, calidad y logística de maíz.</p>
                     </div>
-                    <!-- Filtros y Botón de PDF -->
-                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                        <div class="action-filter-group" style="display: flex; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 12px; gap: 8px;">
-                            <label for="dashboard-planta-filter" style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-building"></i> Planta:</label>
-                            <select id="dashboard-planta-filter" onchange="onGlobalPlantaChange(this.value)" style="border: none; background: transparent; font-family: inherit; font-size: 0.85rem; color: var(--text-main); outline: none; cursor: pointer; font-weight: 700;">
-                                <option value="MANTA">📍 Planta Manta</option>
-                                <option value="BALZAR">📍 Planta Balzar</option>
-                                <option value="TODAS">🌐 Consolidado</option>
+                    <!-- Filtros de Cabecera y Botón Exportar -->
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <div class="header-pill-control">
+                            <i class="fa-solid fa-industry" style="color: #64748B;"></i>
+                            <select id="dashboard-planta-filter" onchange="onGlobalPlantaChange(this.value)">
+                                <option value="BALZAR">Planta Balzar</option>
+                                <option value="MANTA">Planta Manta</option>
+                                <option value="TODAS">Consolidado</option>
                             </select>
                         </div>
-                        <div class="action-filter-group" style="display: flex; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 12px; gap: 8px;">
-                            <label for="dashboard-month-filter" style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-filter"></i> Filtrar Mes:</label>
-                            <select id="dashboard-month-filter" onchange="filterDashboardByMonth()" style="border: none; background: transparent; font-family: inherit; font-size: 0.85rem; color: var(--text-main); outline: none; cursor: pointer; min-width: 140px;">
-                                <option value="all">Todos los Meses</option>
+                        <div class="header-pill-control">
+                            <i class="fa-solid fa-calendar-days" style="color: #64748B;"></i>
+                            <select id="dashboard-month-filter" onchange="filterDashboardByMonth()">
+                                <option value="all">Todos los meses</option>
                                 <!-- Populated dynamically -->
                             </select>
                         </div>
-                        <button onclick="exportDashboardControlsReport()" class="btn-action" style="background: #E2001A; color: white; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; height: 38px; border-radius: 8px; border: none; padding: 0 14px; font-family: inherit; font-weight: 600; cursor: pointer; box-shadow: 0 2px 4px rgba(226, 0, 26, 0.2); transition: var(--transition); white-space: nowrap;">
-                            <i class="fa-solid fa-file-pdf"></i> Exportar Reporte de Controles
+                        <button onclick="exportDashboardControlsReport()" class="btn-export-pronaca">
+                            <i class="fa-solid fa-file-lines"></i> Exportar reporte
                         </button>
                     </div>
                 </div>
 
-                <!-- Stats Cards Grid (4x2 Balanced Layout) -->
-                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;">
+                <!-- Sección 1: Resumen operativo -->
+                <h2 class="dashboard-section-title">Resumen operativo</h2>
+                <div class="stats-grid">
+                    <!-- 1. Total Comprado -->
                     <div class="stat-card interactive-kpi" id="kpi-card-compras" onclick="onKpiCardClick('compras')">
+                        <div class="stat-icon mint">
+                            <i class="fa-solid fa-cart-shopping"></i>
+                        </div>
                         <div class="stat-info">
-                            <h3>Total Comprado</h3>
+                            <h3>TOTAL COMPRADO</h3>
                             <div id="stat-purchased" class="value">0 <span class="unit">Tn</span></div>
                             <span class="interactive-kpi-hint"><i class="fa-solid fa-filter"></i> Clic para filtrar compras</span>
                         </div>
-                        <div class="stat-icon primary">
-                            <i class="fa-solid fa-cart-shopping"></i>
-                        </div>
                     </div>
                     
+                    <!-- 2. Total Despachado -->
                     <div class="stat-card interactive-kpi" id="kpi-card-despachos" onclick="onKpiCardClick('despachos')">
+                        <div class="stat-icon purple">
+                            <i class="fa-solid fa-truck"></i>
+                        </div>
                         <div class="stat-info">
-                            <h3>Total Despachado</h3>
+                            <h3>TOTAL DESPACHADO</h3>
                             <div id="stat-dispatched" class="value">0 <span class="unit">Tn</span></div>
                             <span class="interactive-kpi-hint"><i class="fa-solid fa-filter"></i> Clic para filtrar despachos</span>
                         </div>
-                        <div class="stat-icon secondary">
-                            <i class="fa-solid fa-truck-ramp-box"></i>
-                        </div>
                     </div>
                     
+                    <!-- 3. Tickets Recibidos -->
                     <div class="stat-card interactive-kpi" id="kpi-card-all" onclick="onKpiCardClick('all')">
+                        <div class="stat-icon gray">
+                            <i class="fa-solid fa-receipt"></i>
+                        </div>
                         <div class="stat-info">
-                            <h3>Tickets Recibidos</h3>
+                            <h3>TICKETS RECIBIDOS</h3>
                             <div id="stat-received-tickets" class="value">0</div>
-                            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;" id="stat-received-tickets-total">Total: 0 boletos</span>
+                            <div id="stat-received-tickets-total" class="subtext">0 boletos en total</div>
                             <span class="interactive-kpi-hint"><i class="fa-solid fa-layer-group"></i> Clic para ver todos</span>
                         </div>
-                        <div class="stat-icon info" style="background: rgba(59, 130, 246, 0.1); color: #3B82F6;">
-                            <i class="fa-solid fa-ticket"></i>
-                        </div>
                     </div>
                     
+                    <!-- 4. Boletos Rechazados -->
                     <div class="stat-card interactive-kpi" id="kpi-card-rechazados" onclick="onKpiCardClick('rechazados')">
-                        <div class="stat-info">
-                            <h3>Boletos Rechazados</h3>
-                            <div id="stat-rejected" class="value">0</div>
-                            <span class="interactive-kpi-hint" style="color: #EF4444;"><i class="fa-solid fa-triangle-exclamation"></i> Clic para ver rechazados</span>
-                        </div>
-                        <div class="stat-icon danger">
+                        <div class="stat-icon red">
                             <i class="fa-solid fa-circle-xmark"></i>
                         </div>
-                    </div>
-                    
-                    <div class="stat-card interactive-kpi" onclick="switchTab('contramuestra')">
                         <div class="stat-info">
-                            <h3>Contramuestras Realizadas</h3>
-                            <div id="stat-contramuestras" class="value">0</div>
-                            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;" id="stat-contramuestras-pct">% Muestreo: 0.0%</span>
-                            <span class="interactive-kpi-hint"><i class="fa-solid fa-arrow-right"></i> Ir a Contramuestras</span>
+                            <h3>BOLETOS RECHAZADOS</h3>
+                            <div id="stat-rejected" class="value">0</div>
+                            <span class="interactive-kpi-hint" style="color: #DC2626;"><i class="fa-solid fa-filter"></i> Clic para ver rechazados</span>
                         </div>
-                        <div class="stat-icon accent">
+                    </div>
+                </div>
+
+                <!-- Sección 2: Controles de calidad y evidencia -->
+                <h2 class="dashboard-section-title">Controles de calidad y evidencia</h2>
+                <div class="stats-grid">
+                    <!-- 5. Contramuestras Realizadas -->
+                    <div class="stat-card interactive-kpi" onclick="switchTab('contramuestra')">
+                        <div class="stat-icon mint">
                             <i class="fa-solid fa-flask"></i>
                         </div>
+                        <div class="stat-info">
+                            <h3>CONTRAMUESTRAS REALIZADAS</h3>
+                            <div id="stat-contramuestras" class="value">0</div>
+                            <div id="stat-contramuestras-pct" class="subtext">Muestreo: 0,0 %</div>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-filter"></i> Ir a Contramuestras</span>
+                        </div>
                     </div>
 
+                    <!-- 6. Adherencia Antimicótico -->
                     <div class="stat-card interactive-kpi" onclick="switchTab('antimicotico')">
-                        <div class="stat-info">
-                            <h3>Adherencia Antimicótico</h3>
-                            <div id="stat-antimicotico-kpi" class="value">-%</div>
-                            <span class="interactive-kpi-hint"><i class="fa-solid fa-arrow-right"></i> Ir a Antimicótico</span>
+                        <div class="stat-icon purple">
+                            <i class="fa-solid fa-shield-halved"></i>
                         </div>
-                        <div class="stat-icon warning" style="background: rgba(245, 158, 11, 0.1); color: #F59E0B;">
-                            <i class="fa-solid fa-gauge-high"></i>
+                        <div class="stat-info">
+                            <h3>ADHERENCIA ANTIMICÓTICO</h3>
+                            <div id="stat-antimicotico-kpi" class="value">Sin datos</div>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-filter"></i> Ir a Antimicótico</span>
                         </div>
                     </div>
 
-                    <!-- KPI FOTOS COMPRAS (MES) -->
+                    <!-- 7. Fotos Compras (Mes) -->
                     <div class="stat-card interactive-kpi" onclick="switchTab('fotografico')" title="Ir a Seguimiento Fotográfico">
+                        <div class="stat-icon sky">
+                            <i class="fa-solid fa-camera"></i>
+                        </div>
                         <div class="stat-info">
-                            <h3>Fotos Compras (Mes)</h3>
+                            <h3>FOTOS COMPRAS (MES)</h3>
                             <div id="dash-foto-compras-val" class="value">0 / 0</div>
-                            <span id="dash-foto-compras-sub" style="font-size: 0.72rem; color: #EF4444; font-weight: 600;">0.0% cumplimiento (Bajo meta)</span>
-                            <span class="interactive-kpi-hint"><i class="fa-solid fa-arrow-right"></i> Ir a Seg. Fotográfico</span>
-                        </div>
-                        <div class="stat-icon" style="background: rgba(16, 185, 129, 0.12); color: #10B981;">
-                            <i class="fa-solid fa-cart-shopping"></i>
+                            <div id="dash-foto-compras-sub" class="subtext">Sin registros</div>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-filter"></i> Ir a Seg. Fotográfico</span>
                         </div>
                     </div>
 
-                    <!-- KPI FOTOS TRANSFERENCIAS (MES) -->
+                    <!-- 8. Fotos Transferencias (Mes) -->
                     <div class="stat-card interactive-kpi" onclick="switchTab('fotografico')" title="Ir a Seguimiento Fotográfico">
-                        <div class="stat-info">
-                            <h3>Fotos Transferencias (Mes)</h3>
-                            <div id="dash-foto-transf-val" class="value">0 / 0</div>
-                            <span id="dash-foto-transf-sub" style="font-size: 0.72rem; color: #EF4444; font-weight: 600;">0.0% cumplimiento (Bajo meta)</span>
-                            <span class="interactive-kpi-hint"><i class="fa-solid fa-arrow-right"></i> Ir a Seg. Fotográfico</span>
+                        <div class="stat-icon violet">
+                            <i class="fa-solid fa-file-lines"></i>
                         </div>
-                        <div class="stat-icon" style="background: rgba(2, 132, 199, 0.12); color: #0284C7;">
-                            <i class="fa-solid fa-truck-fast"></i>
+                        <div class="stat-info">
+                            <h3>FOTOS TRANSFERENCIAS (MES)</h3>
+                            <div id="dash-foto-transf-val" class="value">0 / 0</div>
+                            <div id="dash-foto-transf-sub" class="subtext">Sin registros</div>
+                            <span class="interactive-kpi-hint"><i class="fa-solid fa-filter"></i> Ir a Seg. Fotográfico</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Charts Layout Grid -->
                 <div class="charts-grid">
+                    <!-- Left: Volumen de maíz y tendencias operativas -->
                     <div class="chart-card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                            <h3 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
-                                <i class="fa-solid fa-chart-column" style="color: #4BAF4F;"></i> Volumen de Maíz y Tendencias Operativas
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                            <h3 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; color: #0F172A; font-weight: 700;">
+                                <i class="fa-solid fa-chart-column" style="color: #0D766E;"></i> Volumen de maíz y tendencias operativas
                             </h3>
-                            <div style="display: flex; gap: 6px; align-items: center;">
+                            <div class="chart-mode-pill-group">
                                 <button class="btn-chart-mode active" id="btn-chart-daily" onclick="setVolumeChartMode('daily')">Diario</button>
                                 <button class="btn-chart-mode" id="btn-chart-weekly" onclick="setVolumeChartMode('weekly')">Semanal</button>
                                 <button class="btn-chart-mode" id="btn-chart-monthly" onclick="setVolumeChartMode('monthly')">Mensual</button>
@@ -586,18 +608,40 @@
                             <canvas id="volumeChart"></canvas>
                         </div>
                         <div style="text-align: right; margin-top: 6px;">
-                            <span style="font-size: 0.72rem; color: var(--text-muted);"><i class="fa-solid fa-hand-pointer"></i> Haz clic en una barra para filtrar esa fecha en la tabla</span>
+                            <span style="font-size: 0.72rem; color: #64748B;"><i class="fa-solid fa-hand-pointer"></i> Haz clic en una barra para filtrar esa fecha en la tabla</span>
                         </div>
                     </div>
-                    <div class="chart-card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <h3 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
-                                <i class="fa-solid fa-chart-pie" style="color: #10B981;"></i> Estados de Recepción
+
+                    <!-- Right: Estados de recepción -->
+                    <div class="reception-card">
+                        <div class="reception-header">
+                            <h3 class="reception-title">
+                                <i class="fa-solid fa-chart-pie"></i> Estados de recepción
                             </h3>
-                            <span style="font-size: 0.72rem; color: var(--text-muted);"><i class="fa-solid fa-hand-pointer"></i> Clic en sector para filtrar</span>
+                            <div id="reception-pct-display" class="reception-pct-badge">0,0 %</div>
                         </div>
-                        <div style="height: 300px; position: relative; display: flex; justify-content: center;">
-                            <canvas id="statusChart"></canvas>
+                        
+                        <div class="reception-bar-container">
+                            <div class="reception-bar-track" title="Segmentación: Recibidos vs Rechazados">
+                                <div id="reception-bar-accepted" class="reception-bar-fill-accepted" style="width: 100%;"></div>
+                                <div id="reception-bar-rejected" class="reception-bar-fill-rejected" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="reception-breakdown-list">
+                            <div class="reception-breakdown-item" onclick="setDashboardTableFilter('aceptados')" title="Filtrar boletos recibidos">
+                                <div><span class="reception-dot accepted"></span> Recibidos</div>
+                                <div id="reception-count-accepted" class="val">0</div>
+                            </div>
+                            <div class="reception-breakdown-item" onclick="setDashboardTableFilter('rechazados')" title="Filtrar boletos rechazados">
+                                <div><span class="reception-dot rejected"></span> Rechazados</div>
+                                <div id="reception-count-rejected" class="val">0</div>
+                            </div>
+                            <div class="reception-divider"></div>
+                            <div class="reception-breakdown-item total" onclick="setDashboardTableFilter('all')" title="Ver todos">
+                                <div>Total de boletos</div>
+                                <div id="reception-count-total" class="val">0</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1669,6 +1713,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=5.8"></script>
+    <script src="app.js?v=5.9"></script>
 </body>
 </html>
