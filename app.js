@@ -1068,7 +1068,7 @@ let dashboardFilter = {
 
 function setVolumeChartMode(mode) {
     currentVolumeChartMode = mode;
-    ['daily', 'weekly', 'accum'].forEach(m => {
+    ['daily', 'weekly', 'monthly'].forEach(m => {
         const btn = document.getElementById(`btn-chart-${m}`);
         if (btn) {
             if (m === mode) btn.classList.add('active');
@@ -1166,12 +1166,54 @@ function updateFilterPillActiveStates() {
 function renderVolumeChart(selectedMonth) {
     if (charts.volume) charts.volume.destroy();
 
+    // Map daily photographic monitoring data
+    const dailyFotoMap = {};
+    (appData.seguimiento_fotografico || []).forEach(r => {
+        const d = formatDateReadable(r.fecha || r.FECHA);
+        if (!d || d === '-') return;
+        const fc = parseInt(r.fotos_compras || 0, 10);
+        const tc = parseInt(r.compras_total || 0, 10);
+        let pctC = null;
+        if (tc > 0) {
+            pctC = parseFloat(((fc / tc) * 100).toFixed(1));
+        } else if (r.pct_compras !== undefined && r.pct_compras !== null && r.pct_compras !== '') {
+            pctC = parseFloat(Number(r.pct_compras).toFixed(1));
+        }
+        
+        const ft = parseInt(r.fotos_transf || 0, 10);
+        const tt = parseInt(r.transf_total || 0, 10);
+        let pctT = null;
+        if (tt > 0) {
+            pctT = parseFloat(((ft / tt) * 100).toFixed(1));
+        } else if (r.pct_transf !== undefined && r.pct_transf !== null && r.pct_transf !== '') {
+            pctT = parseFloat(Number(r.pct_transf).toFixed(1));
+        }
+        
+        dailyFotoMap[d] = { fc, tc, pctC, ft, tt, pctT };
+    });
+
+    // Map daily antimicotico data
+    const dailyAntiMap = {};
+    (appData.antimicotico || []).forEach(row => {
+        const d = formatDateReadable(row.FECHA || row.fecha);
+        if (!d || d === '-') return;
+        const consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
+        const consReal = parseFloat(row.CONS_REAL || row.cons_real || 0);
+        let adh = null;
+        if (consTeo > 0) {
+            adh = parseFloat(((consReal / consTeo) * 100).toFixed(1));
+        } else if (consReal > 0) {
+            adh = 100;
+        }
+        dailyAntiMap[d] = adh;
+    });
+
     const dailyData = {};
     
     appData.aries.forEach(row => {
         const dateStr = formatDateReadable(row.FECHAENTRA);
         if (dateStr === '-') return;
-        if (selectedMonth !== 'all' && !dateStr.startsWith(selectedMonth)) return;
+        if (currentVolumeChartMode !== 'monthly' && selectedMonth !== 'all' && !dateStr.startsWith(selectedMonth)) return;
         
         if (!dailyData[dateStr]) {
             dailyData[dateStr] = { compra: 0, despacho: 0 };
@@ -1193,21 +1235,19 @@ function renderVolumeChart(selectedMonth) {
     let purchaseVols = [];
     let dispatchVols = [];
     let adherenceVols = [];
+    let fotoComprasVols = [];
+    let fotoTransfVols = [];
+    let monthKeysMap = [];
+
+    const monthNamesEs = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
     if (currentVolumeChartMode === 'daily') {
         chartLabels = dates;
-        purchaseVols = dates.map(d => dailyData[d].compra);
-        dispatchVols = dates.map(d => dailyData[d].despacho);
-        adherenceVols = dates.map(d => {
-            if (!appData.antimicotico) return null;
-            const antiRow = appData.antimicotico.find(row => formatDateReadable(row.FECHA) === d);
-            if (!antiRow) return null;
-            const consTeo = parseFloat(antiRow.CONS_TEO || 0);
-            const consReal = parseFloat(antiRow.CONS_REAL || 0);
-            if (consTeo > 0) return parseFloat(((consReal / consTeo) * 100).toFixed(1));
-            else if (consReal > 0) return 200;
-            return 100;
-        });
+        purchaseVols = dates.map(d => parseFloat(dailyData[d].compra.toFixed(1)));
+        dispatchVols = dates.map(d => parseFloat(dailyData[d].despacho.toFixed(1)));
+        adherenceVols = dates.map(d => dailyAntiMap[d] !== undefined ? dailyAntiMap[d] : null);
+        fotoComprasVols = dates.map(d => dailyFotoMap[d]?.pctC !== undefined ? dailyFotoMap[d].pctC : null);
+        fotoTransfVols = dates.map(d => dailyFotoMap[d]?.pctT !== undefined ? dailyFotoMap[d].pctT : null);
     } else if (currentVolumeChartMode === 'weekly') {
         const weekMap = {};
         dates.forEach(d => {
@@ -1216,80 +1256,180 @@ function renderVolumeChart(selectedMonth) {
             const numberOfDays = Math.floor((dt - oneJan) / (24 * 60 * 60 * 1000));
             const weekNum = Math.ceil((dt.getDay() + 1 + numberOfDays) / 7);
             const weekKey = `Sem ${weekNum} (${d.substring(5)})`;
-            if (!weekMap[weekKey]) weekMap[weekKey] = { compra: 0, despacho: 0, antiCount: 0, antiTotal: 0 };
+            if (!weekMap[weekKey]) {
+                weekMap[weekKey] = {
+                    compra: 0, despacho: 0,
+                    antiTotal: 0, antiCount: 0,
+                    fcTotal: 0, tcTotal: 0,
+                    ftTotal: 0, ttTotal: 0
+                };
+            }
             weekMap[weekKey].compra += dailyData[d].compra;
             weekMap[weekKey].despacho += dailyData[d].despacho;
 
-            if (appData.antimicotico) {
-                const antiRow = appData.antimicotico.find(row => formatDateReadable(row.FECHA) === d);
-                if (antiRow) {
-                    const consTeo = parseFloat(antiRow.CONS_TEO || 0);
-                    const consReal = parseFloat(antiRow.CONS_REAL || 0);
-                    if (consTeo > 0) {
-                        weekMap[weekKey].antiTotal += (consReal / consTeo) * 100;
-                        weekMap[weekKey].antiCount++;
-                    }
-                }
+            if (dailyAntiMap[d] !== undefined && dailyAntiMap[d] !== null) {
+                weekMap[weekKey].antiTotal += dailyAntiMap[d];
+                weekMap[weekKey].antiCount++;
+            }
+
+            if (dailyFotoMap[d]) {
+                weekMap[weekKey].fcTotal += (dailyFotoMap[d].fc || 0);
+                weekMap[weekKey].tcTotal += (dailyFotoMap[d].tc || 0);
+                weekMap[weekKey].ftTotal += (dailyFotoMap[d].ft || 0);
+                weekMap[weekKey].ttTotal += (dailyFotoMap[d].tt || 0);
             }
         });
         chartLabels = Object.keys(weekMap);
-        purchaseVols = chartLabels.map(k => weekMap[k].compra);
-        dispatchVols = chartLabels.map(k => weekMap[k].despacho);
+        purchaseVols = chartLabels.map(k => parseFloat(weekMap[k].compra.toFixed(1)));
+        dispatchVols = chartLabels.map(k => parseFloat(weekMap[k].despacho.toFixed(1)));
         adherenceVols = chartLabels.map(k => weekMap[k].antiCount > 0 ? parseFloat((weekMap[k].antiTotal / weekMap[k].antiCount).toFixed(1)) : null);
-    } else if (currentVolumeChartMode === 'accum') {
-        chartLabels = dates;
-        let runCompra = 0;
-        let runDespacho = 0;
-        dates.forEach(d => {
-            runCompra += dailyData[d].compra;
-            runDespacho += dailyData[d].despacho;
-            purchaseVols.push(parseFloat(runCompra.toFixed(1)));
-            dispatchVols.push(parseFloat(runDespacho.toFixed(1)));
+        fotoComprasVols = chartLabels.map(k => weekMap[k].tcTotal > 0 ? parseFloat(((weekMap[k].fcTotal / weekMap[k].tcTotal) * 100).toFixed(1)) : null);
+        fotoTransfVols = chartLabels.map(k => weekMap[k].ttTotal > 0 ? parseFloat(((weekMap[k].ftTotal / weekMap[k].ttTotal) * 100).toFixed(1)) : null);
+    } else if (currentVolumeChartMode === 'monthly') {
+        const monthsSet = new Set();
+        appData.aries.forEach(r => {
+            const d = formatDateReadable(r.FECHAENTRA);
+            if (d && d.length >= 7 && d !== '-') monthsSet.add(d.substring(0, 7));
         });
-        adherenceVols = dates.map(() => null);
+        (appData.seguimiento_fotografico || []).forEach(r => {
+            const d = formatDateReadable(r.fecha || r.FECHA);
+            if (d && d.length >= 7 && d !== '-') monthsSet.add(d.substring(0, 7));
+        });
+        (appData.antimicotico || []).forEach(row => {
+            const d = formatDateReadable(row.FECHA || row.fecha);
+            if (d && d.length >= 7 && d !== '-') monthsSet.add(d.substring(0, 7));
+        });
+
+        const sortedMonths = Array.from(monthsSet).sort();
+        monthKeysMap = sortedMonths;
+
+        const monthMap = {};
+        sortedMonths.forEach(m => {
+            monthMap[m] = {
+                compra: 0, despacho: 0,
+                antiTotal: 0, antiCount: 0,
+                fcTotal: 0, tcTotal: 0,
+                ftTotal: 0, ttTotal: 0
+            };
+        });
+
+        appData.aries.forEach(row => {
+            const dateStr = formatDateReadable(row.FECHAENTRA);
+            if (!dateStr || dateStr === '-') return;
+            const m = dateStr.substring(0, 7);
+            if (!monthMap[m]) return;
+            const isPurchase = Number(row.PESOARTIC) === 1;
+            const kilos = Number(row.PESOKILOS || 0) / 1000;
+            if (isPurchase) monthMap[m].compra += kilos;
+            else monthMap[m].despacho += kilos;
+        });
+
+        (appData.antimicotico || []).forEach(row => {
+            const d = formatDateReadable(row.FECHA || row.fecha);
+            if (!d || d === '-') return;
+            const m = d.substring(0, 7);
+            if (!monthMap[m]) return;
+            if (dailyAntiMap[d] !== undefined && dailyAntiMap[d] !== null) {
+                monthMap[m].antiTotal += dailyAntiMap[d];
+                monthMap[m].antiCount++;
+            }
+        });
+
+        (appData.seguimiento_fotografico || []).forEach(r => {
+            const d = formatDateReadable(r.fecha || r.FECHA);
+            if (!d || d === '-') return;
+            const m = d.substring(0, 7);
+            if (!monthMap[m]) return;
+            monthMap[m].fcTotal += parseInt(r.fotos_compras || 0, 10);
+            monthMap[m].tcTotal += parseInt(r.compras_total || 0, 10);
+            monthMap[m].ftTotal += parseInt(r.fotos_transf || 0, 10);
+            monthMap[m].ttTotal += parseInt(r.transf_total || 0, 10);
+        });
+
+        chartLabels = sortedMonths.map(m => {
+            const [yr, mo] = m.split('-');
+            return `${monthNamesEs[parseInt(mo, 10) - 1]} ${yr}`;
+        });
+
+        purchaseVols = sortedMonths.map(m => parseFloat(monthMap[m].compra.toFixed(1)));
+        dispatchVols = sortedMonths.map(m => parseFloat(monthMap[m].despacho.toFixed(1)));
+        adherenceVols = sortedMonths.map(m => monthMap[m].antiCount > 0 ? parseFloat((monthMap[m].antiTotal / monthMap[m].antiCount).toFixed(1)) : null);
+        fotoComprasVols = sortedMonths.map(m => monthMap[m].tcTotal > 0 ? parseFloat(((monthMap[m].fcTotal / monthMap[m].tcTotal) * 100).toFixed(1)) : null);
+        fotoTransfVols = sortedMonths.map(m => monthMap[m].ttTotal > 0 ? parseFloat(((monthMap[m].ftTotal / monthMap[m].ttTotal) * 100).toFixed(1)) : null);
     }
 
     const ctx = document.getElementById('volumeChart').getContext('2d');
     charts.volume = new Chart(ctx, {
-        type: currentVolumeChartMode === 'accum' ? 'line' : 'bar',
+        type: 'bar',
         data: {
             labels: chartLabels,
             datasets: [
                 {
-                    label: currentVolumeChartMode === 'accum' ? 'Compras Acumuladas (Tn)' : 'Compras (Tn)',
+                    label: 'Compras (Tn)',
                     data: purchaseVols,
-                    backgroundColor: currentVolumeChartMode === 'accum' ? 'rgba(75, 175, 79, 0.15)' : 'rgba(75, 175, 79, 0.75)',
+                    backgroundColor: 'rgba(75, 175, 79, 0.75)',
                     borderColor: '#4BAF4F',
-                    borderWidth: currentVolumeChartMode === 'accum' ? 2.5 : 1,
-                    fill: currentVolumeChartMode === 'accum',
-                    tension: 0.25,
+                    borderWidth: 1,
                     borderRadius: 4,
-                    yAxisID: 'y'
+                    yAxisID: 'y',
+                    order: 2
                 },
                 {
-                    label: currentVolumeChartMode === 'accum' ? 'Despachos Acumulados (Tn)' : 'Despachos (Tn)',
+                    label: 'Despachos (Tn)',
                     data: dispatchVols,
-                    backgroundColor: currentVolumeChartMode === 'accum' ? 'rgba(227, 6, 19, 0.12)' : 'rgba(227, 6, 19, 0.75)',
+                    backgroundColor: 'rgba(227, 6, 19, 0.75)',
                     borderColor: '#E30613',
-                    borderWidth: currentVolumeChartMode === 'accum' ? 2.5 : 1,
-                    fill: currentVolumeChartMode === 'accum',
-                    tension: 0.25,
+                    borderWidth: 1,
                     borderRadius: 4,
-                    yAxisID: 'y'
+                    yAxisID: 'y',
+                    order: 2
                 },
-                ...(currentVolumeChartMode !== 'accum' ? [{
+                {
                     label: 'Adherencia Antimicótico (%)',
                     data: adherenceVols,
                     type: 'line',
                     borderColor: '#F59E0B',
                     backgroundColor: 'transparent',
-                    borderWidth: 2.5,
-                    tension: 0.3,
+                    borderWidth: 2.2,
+                    tension: 0.25,
                     pointBackgroundColor: '#F59E0B',
-                    pointRadius: 4,
+                    pointRadius: 3.5,
                     yAxisID: 'yAdherence',
-                    spanGaps: true
-                }] : [])
+                    spanGaps: true,
+                    order: 1
+                },
+                {
+                    label: '% Fotos Compras',
+                    data: fotoComprasVols,
+                    type: 'line',
+                    borderColor: '#10B981',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.2,
+                    borderDash: [4, 4],
+                    tension: 0.25,
+                    pointBackgroundColor: '#10B981',
+                    pointRadius: 4,
+                    pointStyle: 'circle',
+                    yAxisID: 'yAdherence',
+                    spanGaps: true,
+                    order: 1
+                },
+                {
+                    label: '% Fotos Transferencias',
+                    data: fotoTransfVols,
+                    type: 'line',
+                    borderColor: '#0284C7',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.2,
+                    borderDash: [2, 2],
+                    tension: 0.25,
+                    pointBackgroundColor: '#0284C7',
+                    pointRadius: 4,
+                    pointStyle: 'triangle',
+                    yAxisID: 'yAdherence',
+                    spanGaps: true,
+                    order: 1
+                }
             ]
         },
         options: {
@@ -1302,21 +1442,29 @@ function renderVolumeChart(selectedMonth) {
             onClick: (event, elements) => {
                 if (elements && elements.length > 0) {
                     const idx = elements[0].index;
-                    const clickedLabel = charts.volume.data.labels[idx];
-                    if (currentVolumeChartMode === 'daily' && clickedLabel) {
-                        filterDashboardByDate(clickedLabel);
+                    if (currentVolumeChartMode === 'daily') {
+                        const clickedLabel = chartLabels[idx];
+                        if (clickedLabel) filterDashboardByDate(clickedLabel);
+                    } else if (currentVolumeChartMode === 'monthly' && monthKeysMap[idx]) {
+                        const select = document.getElementById('dashboard-month-filter');
+                        if (select) {
+                            select.value = monthKeysMap[idx];
+                            onDashboardMonthFilterChange();
+                        }
                     }
                 }
             },
             plugins: {
                 legend: {
-                    labels: { color: '#374151', font: { family: 'Outfit', weight: '600' } }
+                    position: 'top',
+                    labels: { color: '#374151', font: { family: 'Outfit', weight: '600', size: 11 }, boxWidth: 12, padding: 12 }
                 },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
                             if (context.dataset.yAxisID === 'yAdherence') {
-                                return ` ${context.dataset.label}: ${context.raw !== null ? context.raw + '%' : 'Sin registro'}`;
+                                const val = context.raw;
+                                return ` ${context.dataset.label}: ${val !== null && val !== undefined ? val + '%' : 'Sin registro'}`;
                             }
                             return ` ${context.dataset.label}: ${(context.raw || 0).toLocaleString('es-EC', {maximumFractionDigits: 1})} Tn`;
                         }
@@ -1340,25 +1488,23 @@ function renderVolumeChart(selectedMonth) {
                     grid: { color: 'rgba(0,0,0,0.05)' },
                     ticks: { color: '#4B5563' }
                 },
-                ...(currentVolumeChartMode !== 'accum' ? {
-                    yAdherence: {
-                        type: 'linear',
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Adherencia Antimicótico (%)',
-                            color: '#F59E0B',
-                            font: { family: 'Outfit', weight: 'bold' }
-                        },
-                        grid: { drawOnChartArea: false },
-                        ticks: {
-                            color: '#F59E0B',
-                            callback: function(value) { return value + '%'; }
-                        },
-                        suggestedMin: 80,
-                        suggestedMax: 120
-                    }
-                } : {})
+                yAdherence: {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Cumplimiento / Adherencia (%)',
+                        color: '#4B5563',
+                        font: { family: 'Outfit', weight: 'bold' }
+                    },
+                    grid: { drawOnChartArea: false },
+                    ticks: {
+                        color: '#4B5563',
+                        callback: function(value) { return value + '%'; }
+                    },
+                    suggestedMin: 60,
+                    suggestedMax: 110
+                }
             }
         }
     });
@@ -3310,175 +3456,359 @@ function exportHistoryReport() {
 }
 
 function exportAntimicoticoReport() {
-    const tbody = document.getElementById('antimicotico-table-body');
-    if (!tbody) return;
-    
-    const allSorted = [...appData.antimicotico].sort((a, b) => new Date(a.FECHA) - new Date(b.FECHA));
-    
-    let runningBatchStock = 0;
-    const calculatedData = {};
-    
-    allSorted.forEach(row => {
-        const dateStr = formatDateReadable(row.FECHA);
-        
-        let ingreso = Number(row.INGRESO || row.ingreso || 0);
-        if (ingreso === 0) {
-            let totalKilosDay = 0;
-            appData.antimicotico_ingresos.forEach(d => {
-                if (formatDateReadable(d.FECHA) === dateStr) {
-                    totalKilosDay += Number(d.CANTIDAD_KG || 0);
-                }
-            });
-            ingreso = totalKilosDay;
-        }
-        
-        const totalIni = Number(row.TOTAL_INI || 0);
-        const totalFin = Number(row.TOTAL_FIN || 0);
-        const consReal = Number(row.CONS_REAL || 0);
-        
-        let invFinal = Number(row.INV_FINAL || row.inv_final || 0);
-        if (invFinal === 0) {
-            invFinal = ingreso - consReal;
-        }
-        
-        runningBatchStock = invFinal;
-        
-        let totalTm = Number(row.TOTAL_TM || row.total_tm || 0);
-        if (totalTm === 0 && appData.aries) {
-            let totalKilosDay = 0;
-            appData.aries.forEach(r => {
-                if (formatDateReadable(r.FECHAENTRA) === dateStr) {
-                    const isPurchase = Number(r.PESOARTIC) === 1;
-                    const isRejected = r.RECHAZA_PS && String(r.RECHAZA_PS).trim().toUpperCase() === 'S';
-                    if (isPurchase && isRejected) return;
-                    totalKilosDay += Number(r.PESOKILOS || r.CANTKILOSR || 0);
-                }
-            });
-            totalTm = totalKilosDay / 1000;
-        }
-        
-        let pctConsumo = Number(row.PCT_CONSUMO_TM || row.pct_consumo_tm || 0);
-        if (pctConsumo === 0 && totalTm > 0) {
-            pctConsumo = (consReal / totalTm) * 100;
-        }
-        
-        calculatedData[dateStr] = {
-            ingreso,
-            invFinal,
-            totalTm,
-            pctConsumo,
-            consReal,
-            totalIni,
-            totalFin
-        };
-    });
-    
-    const startVal = document.getElementById('anti-filter-start').value;
-    const endVal = document.getElementById('anti-filter-end').value;
-    
-    let filtered = [...allSorted];
-    if (startVal) {
-        const startD = new Date(startVal + 'T00:00:00');
-        filtered = filtered.filter(row => new Date(formatDateReadable(row.FECHA) + 'T00:00:00') >= startD);
-    }
-    if (endVal) {
-        const endD = new Date(endVal + 'T23:59:59');
-        filtered = filtered.filter(row => new Date(formatDateReadable(row.FECHA) + 'T00:00:00') <= endD);
-    }
-    
-    if (filtered.length === 0) {
-        showToast('No hay registros en el rango de fechas seleccionado.', 'warning');
+    if (typeof html2pdf === 'undefined') {
+        showToast('La librería para generar PDF aún no se ha cargado. Por favor verifique su conexión e intente de nuevo.', 'warning');
         return;
     }
-    
-    let tableRowsHtml = '';
-    filtered.forEach((row, idx) => {
-        const dateStr = formatDateReadable(row.FECHA);
-        const calc = calculatedData[dateStr] || {
-            ingreso: 0,
-            totalIni: Number(row.TOTAL_INI || 0),
-            totalFin: Number(row.TOTAL_FIN || 0),
-            consReal: Number(row.CONS_REAL || 0),
-            totalTm: 0,
-            pctConsumo: 0,
-            invFinal: 0
-        };
-        
-        const bodegaStr = row["#_DE_BODEGA"] || row.BODEGA || row.bodega || '';
-        const realizadoStr = row.REALIZADO_POR || row.realizado_por || row.realizado || '-';
-        const observacionStr = row.OBSERVACION || row.observacion || '-';
-        
-        const rowBgColor = idx % 2 === 0 ? '#ffffff' : '#f9f9f9';
-        
-        tableRowsHtml += `
-            <tr style="height: 24px; background-color: ${rowBgColor};">
-                <td style="border: 1px solid #666; text-align: center; padding: 5px; font-size: 7.5pt; font-weight: bold;">${dateStr}</td>
-                <td style="border: 1px solid #666; text-align: right; padding: 5px; font-size: 7.5pt;">${calc.ingreso.toFixed(1)}</td>
-                <td style="border: 1px solid #666; text-align: right; padding: 5px; font-size: 7.5pt;">${calc.totalIni.toFixed(1)}</td>
-                <td style="border: 1px solid #666; text-align: right; padding: 5px; font-size: 7.5pt;">${calc.totalFin.toFixed(1)}</td>
-                <td style="border: 1px solid #666; text-align: right; padding: 5px; font-size: 7.5pt; font-weight: bold; background-color: #f2f2f2;">${calc.consReal.toFixed(1)}</td>
-                <td style="border: 1px solid #666; text-align: right; padding: 5px; font-size: 7.5pt;">${calc.totalTm.toFixed(1)}</td>
-                <td style="border: 1px solid #666; text-align: center; padding: 5px; font-size: 7.5pt; font-weight: bold; color: #E2001A;">${calc.pctConsumo.toFixed(1)}%</td>
-                <td style="border: 1px solid #666; text-align: right; padding: 5px; font-size: 7.5pt; font-weight: bold; color: #0284c7; background-color: #e6f3ff;">${calc.invFinal.toFixed(1)}</td>
-                <td style="border: 1px solid #666; text-align: center; padding: 5px; font-size: 7.5pt;">${bodegaStr}</td>
-                <td style="border: 1px solid #666; text-align: left; padding: 5px; font-size: 7.5pt; white-space: nowrap;">${realizadoStr}</td>
-                <td style="border: 1px solid #666; text-align: left; padding: 5px; font-size: 7.2pt; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${observacionStr}">${observacionStr}</td>
-            </tr>
-        `;
-    });
-    
-    const htmlContent = `
-        <div style="width: 100%; box-sizing: border-box; font-family: Arial, sans-serif; color: #111; font-size: 8.5pt; padding: 10px;">
-            <!-- Header Block -->
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; border-bottom: 2px solid #E2001A;">
-                <tr style="height: 65px;">
-                    <td style="width: 140px; text-align: left; vertical-align: middle; height: 65px; padding: 0;">
-                        <img src="data:image/png;base64,${LOGO_BASE64}" style="width: 125px; height: 47px; display: block; border: none; margin: 0;" />
-                    </td>
-                    <td style="text-align: center; vertical-align: middle; height: 65px; padding: 0;">
-                        <div style="font-size: 13.5pt; font-weight: bold; font-family: 'Century Gothic', Arial, sans-serif; letter-spacing: 0.5px; color: #E2001A; line-height: 1.2;">PRONACA EMISALVA VÍA MANTA / MONTECRISTI</div>
-                        <div style="font-size: 9.5pt; font-weight: bold; color: #444; margin-top: 4px; text-transform: uppercase;">
-                            CONTROL DE CONSUMO DE ANTIMICÓTICO - PRODUCTO: MAÍZ NACIONAL
-                        </div>
-                    </td>
-                    <td style="width: 140px; height: 65px; padding: 0;"></td>
-                </tr>
-            </table>
 
-            <!-- Table of Logs -->
-            <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
-                <thead>
-                    <tr style="color: white;">
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Fecha</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Ingreso</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Lectura Inicial</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Lectura Final</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Consumo Litros</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Total TM</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">%Consumo Lts/TM</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Inv. Final</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;"># de Bodega</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Realizado Por</th>
-                        <th style="border: 1px solid #666; padding: 6px 4px; font-size: 7.8pt; text-align: center; text-transform: uppercase; background-color: #E2001A; color: white; font-weight: bold;">Observación</th>
+    const startVal = document.getElementById('anti-filter-start') ? document.getElementById('anti-filter-start').value : '';
+    const endVal = document.getElementById('anti-filter-end') ? document.getElementById('anti-filter-end').value : '';
+    const startD = startVal ? new Date(startVal + 'T00:00:00') : null;
+    const endD = endVal ? new Date(endVal + 'T23:59:59') : null;
+
+    function parseRowDate(row) {
+        const raw = row.FECHA || row.fecha || row.Fecha || row.FECHA_CONSUMO || row.fecha_consumo;
+        if (!raw) return null;
+        if (raw instanceof Date) return raw;
+        if (typeof raw === 'number') {
+            return new Date((raw - (25567 + 2)) * 86400 * 1000);
+        }
+        const str = String(raw).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+            return new Date(str.substring(0, 10) + 'T00:00:00');
+        }
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(str)) {
+            const parts = str.split('/');
+            return new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T00:00:00`);
+        }
+        const d = new Date(str);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    let reportTitle = '';
+    let reportFilename = '';
+    let htmlContent = '';
+
+    if (antiHistoryTab === 'entregas') {
+        // REPORT OF INGRESOS / LOTES
+        const sourceData = appData.antimicotico_ingresos || [];
+        if (sourceData.length === 0) {
+            showToast('No hay registros de ingresos de antimicótico para generar el PDF.', 'warning');
+            return;
+        }
+
+        let filtered = [...sourceData].sort((a, b) => {
+            const da = parseRowDate(a) || new Date(0);
+            const db = parseRowDate(b) || new Date(0);
+            return da - db;
+        });
+
+        if (startD || endD) {
+            filtered = filtered.filter(row => {
+                const dt = parseRowDate(row);
+                if (!dt) return true;
+                if (startD && dt < startD) return false;
+                if (endD && dt > endD) return false;
+                return true;
+            });
+        }
+
+        if (filtered.length === 0) {
+            showToast('No hay registros de ingresos en el rango de fechas seleccionado.', 'warning');
+            return;
+        }
+
+        let totalKg = 0;
+        filtered.forEach(r => {
+            totalKg += parseFloat(r.CANTIDAD_KG || r.cantidad_kg || 0);
+        });
+
+        reportTitle = 'CONTROL DE INGRESOS (LOTES) DE ANTIMICÓTICO';
+        reportFilename = `Reporte_Ingresos_Antimicotico_${new Date().toISOString().split('T')[0]}.pdf`;
+
+        let rowsHtml = '';
+        filtered.forEach((row, idx) => {
+            const dt = parseRowDate(row);
+            const dateStr = dt ? dt.toISOString().split('T')[0] : formatDateReadable(row.FECHA || row.fecha);
+            const cant = parseFloat(row.CANTIDAD_KG || row.cantidad_kg || 0);
+            const obs = row.OBSERVACION || row.observacion || '-';
+            const rowBg = idx % 2 === 0 ? '#ffffff' : '#f9f9f9';
+
+            rowsHtml += `
+                <tr style="height: 26px; background-color: ${rowBg};">
+                    <td style="border: 1px solid #777; text-align: center; padding: 6px; font-size: 8.5pt; font-weight: bold;">${dateStr}</td>
+                    <td style="border: 1px solid #777; text-align: right; padding: 6px; font-size: 8.5pt; font-weight: bold; color: #15803d;">${cant.toFixed(1)} Kg / L</td>
+                    <td style="border: 1px solid #777; text-align: left; padding: 6px; font-size: 8.5pt;">${obs}</td>
+                </tr>
+            `;
+        });
+
+        htmlContent = `
+            <div style="width: 100%; box-sizing: border-box; font-family: Arial, sans-serif; color: #111; font-size: 9pt; padding: 12px;">
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; border-bottom: 2px solid #E2001A;">
+                    <tr style="height: 60px;">
+                        <td style="width: 140px; text-align: left; vertical-align: middle;">
+                            <img src="data:image/png;base64,${LOGO_BASE64}" style="width: 120px; height: 45px; display: block; border: none;" />
+                        </td>
+                        <td style="text-align: center; vertical-align: middle;">
+                            <div style="font-size: 13pt; font-weight: bold; font-family: 'Century Gothic', Arial, sans-serif; color: #E2001A;">PRONACA EMISALVA VÍA MANTA / MONTECRISTI</div>
+                            <div style="font-size: 10pt; font-weight: bold; color: #444; margin-top: 3px; text-transform: uppercase;">
+                                ${reportTitle}
+                            </div>
+                        </td>
+                        <td style="width: 140px; text-align: right; font-size: 7.5pt; color: #666; vertical-align: middle;">
+                            Fecha emisión: ${new Date().toISOString().split('T')[0]}
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    ${tableRowsHtml}
-                </tbody>
-            </table>
-            <!-- Signatures Section Removed -->
-        </div>
-    `;
-    
+                </table>
+
+                <div style="display: flex; gap: 14px; margin-bottom: 12px;">
+                    <div style="flex: 1; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; text-align: center;">
+                        <div style="font-size: 8pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Total Ingresos Registrados</div>
+                        <div style="font-size: 14pt; font-weight: bold; color: #0284c7; margin-top: 2px;">${filtered.length} lotes</div>
+                    </div>
+                    <div style="flex: 1; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px 12px; text-align: center;">
+                        <div style="font-size: 8pt; color: #166534; font-weight: bold; text-transform: uppercase;">Volumen Total Ingresado</div>
+                        <div style="font-size: 14pt; font-weight: bold; color: #15803d; margin-top: 2px;">${totalKg.toFixed(1)} Kg / L</div>
+                    </div>
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+                    <thead>
+                        <tr style="background-color: #E2001A; color: white;">
+                            <th style="border: 1px solid #666; padding: 7px; font-size: 8.5pt; text-align: center; width: 18%;">Fecha de Ingreso</th>
+                            <th style="border: 1px solid #666; padding: 7px; font-size: 8.5pt; text-align: right; width: 25%;">Cantidad Lotes (Kg / L)</th>
+                            <th style="border: 1px solid #666; padding: 7px; font-size: 8.5pt; text-align: left;">Observación / Detalle</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } else {
+        // REPORT OF CONSUMOS DIARIOS
+        const sourceData = appData.antimicotico || [];
+        if (sourceData.length === 0) {
+            showToast('No hay registros de consumo de antimicótico para generar el PDF.', 'warning');
+            return;
+        }
+
+        let allSorted = [...sourceData].sort((a, b) => {
+            const da = parseRowDate(a) || new Date(0);
+            const db = parseRowDate(b) || new Date(0);
+            return da - db;
+        });
+
+        let filtered = allSorted;
+        if (startD || endD) {
+            filtered = filtered.filter(row => {
+                const dt = parseRowDate(row);
+                if (!dt) return true;
+                if (startD && dt < startD) return false;
+                if (endD && dt > endD) return false;
+                return true;
+            });
+        }
+
+        if (filtered.length === 0) {
+            showToast('No hay registros de consumo en el rango de fechas seleccionado.', 'warning');
+            return;
+        }
+
+        reportTitle = 'CONTROL DE CONSUMO DIARIO DE ANTIMICÓTICO - PRODUCTO: MAÍZ NACIONAL';
+        reportFilename = `Reporte_Consumo_Antimicotico_${new Date().toISOString().split('T')[0]}.pdf`;
+
+        let sumConsReal = 0;
+        let sumConsTeo = 0;
+        let sumTrucks = 0;
+        let sumTotalTm = 0;
+        let cumplesCount = 0;
+
+        let tableRowsHtml = '';
+        filtered.forEach((row, idx) => {
+            const dt = parseRowDate(row);
+            const dateStr = dt ? dt.toISOString().split('T')[0] : formatDateReadable(row.FECHA || row.fecha);
+
+            const totalIni = parseFloat(row.TOTAL_INI || row.total_ini || 0);
+            const totalFin = parseFloat(row.TOTAL_FIN || row.total_fin || 0);
+            const added = parseFloat(row.CANT_AGREGADA || row.cant_agregada || 0);
+            const consReal = parseFloat(row.CONS_REAL || row.cons_real || 0);
+            const consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
+            const trucks = parseInt(row.TRUCKS_RCVD || row.trucks_rcvd || 0, 10);
+            const diff = parseFloat(row.DIFERENCIA || row.diferencia || (consReal - consTeo));
+
+            let diffPct = 0;
+            let complies = true;
+            if (consTeo > 0) {
+                diffPct = (diff / consTeo) * 100;
+                if (Math.abs(diffPct) > 10) complies = false;
+            } else if (consReal > 0) {
+                complies = false;
+            }
+            if (complies) cumplesCount++;
+
+            let dayTm = parseFloat(row.TOTAL_TM || row.total_tm || 0);
+            if (dayTm === 0 && appData.aries) {
+                let kilosDay = 0;
+                appData.aries.forEach(r => {
+                    if (formatDateReadable(r.FECHAENTRA) === dateStr) {
+                        const isPurchase = Number(r.PESOARTIC) === 1;
+                        const isRejected = r.RECHAZA_PS && String(r.RECHAZA_PS).trim().toUpperCase() === 'S';
+                        if (isPurchase && isRejected) return;
+                        kilosDay += Number(r.PESOKILOS || r.CANTKILOSR || 0);
+                    }
+                });
+                dayTm = kilosDay / 1000;
+            }
+
+            sumConsReal += consReal;
+            sumConsTeo += consTeo;
+            sumTrucks += trucks;
+            sumTotalTm += dayTm;
+
+            const bodegaStr = row["#_DE_BODEGA"] || row.BODEGA || row.bodega || '-';
+            const realizadoStr = row.REALIZADO_POR || row.realizado_por || 'Karen Quijije';
+            const observacionStr = row.OBSERVACION || row.observacion || '-';
+            const rowBgColor = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+
+            tableRowsHtml += `
+                <tr style="height: 22px; background-color: ${rowBgColor};">
+                    <td style="border: 1px solid #777; text-align: center; padding: 4px; font-size: 7.5pt; font-weight: bold;">${dateStr}</td>
+                    <td style="border: 1px solid #777; text-align: right; padding: 4px; font-size: 7.5pt;">${totalIni.toFixed(1)}</td>
+                    <td style="border: 1px solid #777; text-align: right; padding: 4px; font-size: 7.5pt;">${added > 0 ? '+' + added.toFixed(1) : '-'}</td>
+                    <td style="border: 1px solid #777; text-align: right; padding: 4px; font-size: 7.5pt; font-weight: bold; color: #0284c7;">${totalFin.toFixed(1)}</td>
+                    <td style="border: 1px solid #777; text-align: center; padding: 4px; font-size: 7.5pt; font-weight: bold;">${trucks}</td>
+                    <td style="border: 1px solid #777; text-align: right; padding: 4px; font-size: 7.5pt;">${consTeo.toFixed(1)}</td>
+                    <td style="border: 1px solid #777; text-align: right; padding: 4px; font-size: 7.5pt; font-weight: bold; background-color: #f1f5f9;">${consReal.toFixed(1)}</td>
+                    <td style="border: 1px solid #777; text-align: right; padding: 4px; font-size: 7.5pt; font-weight: bold; color: ${complies ? '#15803d' : '#b91c1c'};">
+                        ${diff > 0 ? '+' : ''}${diff.toFixed(1)} (${diffPct.toFixed(1)}%)
+                    </td>
+                    <td style="border: 1px solid #777; text-align: center; padding: 3px; font-size: 7pt; font-weight: bold;">
+                        <span style="background: ${complies ? '#dcfce7' : '#fee2e2'}; color: ${complies ? '#15803d' : '#b91c1c'}; padding: 2px 5px; border-radius: 3px; display: inline-block;">
+                            ${complies ? 'CUMPLE' : 'FUERA'}
+                        </span>
+                    </td>
+                    <td style="border: 1px solid #777; text-align: right; padding: 4px; font-size: 7.5pt;">${dayTm > 0 ? dayTm.toFixed(1) : '-'}</td>
+                    <td style="border: 1px solid #777; text-align: center; padding: 4px; font-size: 7.5pt;">${bodegaStr}</td>
+                    <td style="border: 1px solid #777; text-align: left; padding: 4px; font-size: 7.2pt; white-space: nowrap;">${realizadoStr}</td>
+                    <td style="border: 1px solid #777; text-align: left; padding: 4px; font-size: 7.2pt; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${observacionStr}">${observacionStr}</td>
+                </tr>
+            `;
+        });
+
+        const adherenceGlobal = sumConsTeo > 0 ? ((sumConsReal / sumConsTeo) * 100).toFixed(1) : '100.0';
+        const diffGlobal = sumConsReal - sumConsTeo;
+
+        htmlContent = `
+            <div style="width: 100%; box-sizing: border-box; font-family: Arial, sans-serif; color: #111; font-size: 8pt; padding: 8px;">
+                <!-- Header Block -->
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; border-bottom: 2px solid #E2001A;">
+                    <tr style="height: 55px;">
+                        <td style="width: 130px; text-align: left; vertical-align: middle;">
+                            <img src="data:image/png;base64,${LOGO_BASE64}" style="width: 115px; height: 42px; display: block; border: none;" />
+                        </td>
+                        <td style="text-align: center; vertical-align: middle;">
+                            <div style="font-size: 12.5pt; font-weight: bold; font-family: 'Century Gothic', Arial, sans-serif; color: #E2001A; line-height: 1.2;">PRONACA EMISALVA VÍA MANTA / MONTECRISTI</div>
+                            <div style="font-size: 9pt; font-weight: bold; color: #333; margin-top: 2px; text-transform: uppercase;">
+                                ${reportTitle}
+                            </div>
+                        </td>
+                        <td style="width: 130px; text-align: right; font-size: 7pt; color: #666; vertical-align: middle;">
+                            Emisión: ${new Date().toISOString().split('T')[0]}<br>
+                            Registros: ${filtered.length} días
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Summary KPI Cards -->
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <div style="flex: 1; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 8px; text-align: center;">
+                        <div style="font-size: 7pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Consumo Real Total</div>
+                        <div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-top: 1px;">${sumConsReal.toFixed(1)} L</div>
+                    </div>
+                    <div style="flex: 1; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 8px; text-align: center;">
+                        <div style="font-size: 7pt; color: #64748b; font-weight: bold; text-transform: uppercase;">Consumo Teórico Total</div>
+                        <div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-top: 1px;">${sumConsTeo.toFixed(1)} L</div>
+                    </div>
+                    <div style="flex: 1; background: ${diffGlobal <= 0 ? '#f0fdf4' : '#fef2f2'}; border: 1px solid ${diffGlobal <= 0 ? '#bbf7d0' : '#fecaca'}; border-radius: 4px; padding: 6px 8px; text-align: center;">
+                        <div style="font-size: 7pt; color: ${diffGlobal <= 0 ? '#166534' : '#991b1b'}; font-weight: bold; text-transform: uppercase;">Diferencia Acumulada</div>
+                        <div style="font-size: 11.5pt; font-weight: bold; color: ${diffGlobal <= 0 ? '#15803d' : '#b91c1c'}; margin-top: 1px;">
+                            ${diffGlobal > 0 ? '+' : ''}${diffGlobal.toFixed(1)} L
+                        </div>
+                    </div>
+                    <div style="flex: 1; background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; padding: 6px 8px; text-align: center;">
+                        <div style="font-size: 7pt; color: #92400e; font-weight: bold; text-transform: uppercase;">Adherencia Global</div>
+                        <div style="font-size: 11.5pt; font-weight: bold; color: #d97706; margin-top: 1px;">${adherenceGlobal}%</div>
+                    </div>
+                    <div style="flex: 1; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 6px 8px; text-align: center;">
+                        <div style="font-size: 7pt; color: #166534; font-weight: bold; text-transform: uppercase;">Carros / TM Maíz</div>
+                        <div style="font-size: 11.5pt; font-weight: bold; color: #15803d; margin-top: 1px;">${sumTrucks} carros / ${sumTotalTm.toFixed(0)} Tn</div>
+                    </div>
+                </div>
+
+                <!-- Table of Logs -->
+                <table style="width: 100%; border-collapse: collapse; margin-top: 4px;">
+                    <thead>
+                        <tr style="background-color: #E2001A; color: white;">
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Fecha</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Inv. Ini (L)</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Agregado (L)</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Inv. Fin (L)</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Carros</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">C. Teo (L)</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">C. Real (L)</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Diferencia</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Target</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Total TM</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Bodega</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Realizado</th>
+                            <th style="border: 1px solid #666; padding: 5px 3px; font-size: 7.2pt; text-align: center; text-transform: uppercase; font-weight: bold;">Observación</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Attach to document body offscreen with exact dimensions for flawless html2canvas rendering
+    const printContainer = document.createElement('div');
+    printContainer.id = 'temp-antimicotico-pdf';
+    printContainer.style.position = 'fixed';
+    printContainer.style.left = '-9999px';
+    printContainer.style.top = '0';
+    printContainer.style.width = '1080px';
+    printContainer.style.background = '#ffffff';
+    printContainer.style.zIndex = '-9999';
+    printContainer.innerHTML = htmlContent;
+    document.body.appendChild(printContainer);
+
     const opt = {
-        margin:       [0.4, 0.4, 0.4, 0.4],
-        filename:     `Reporte_Consumo_Antimicotico_${new Date().toISOString().split('T')[0]}.pdf`,
+        margin:       [0.3, 0.3, 0.3, 0.3],
+        filename:     reportFilename,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2.5, useCORS: true, logging: false },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
     };
-    
-    html2pdf().set(opt).from(htmlContent).save();
+
+    showToast('Generando reporte PDF de antimicótico...', 'info');
+
+    html2pdf().set(opt).from(printContainer).save().then(() => {
+        if (document.body.contains(printContainer)) {
+            document.body.removeChild(printContainer);
+        }
+        showToast('Reporte PDF descargado con éxito', 'success');
+    }).catch(err => {
+        console.error('Error al generar PDF de antimicótico:', err);
+        if (document.body.contains(printContainer)) {
+            document.body.removeChild(printContainer);
+        }
+        showToast('Error al generar PDF: ' + (err.message || 'Error en renderizado'), 'danger');
+    });
 }
 
 
