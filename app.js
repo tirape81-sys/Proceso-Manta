@@ -52,6 +52,24 @@ const DEFAULT_SEED_USERS = [
     },
     {
         id: 4,
+        username: 'operador_arrocesa',
+        password: 'arrocesa123',
+        nombre_completo: 'Operador Centro Arrocesa',
+        rol: 'OPERADOR_ARROCESA',
+        planta_asignada: 'ARROCESA',
+        activo: true
+    },
+    {
+        id: 5,
+        username: 'operador_tld',
+        password: 'tld123',
+        nombre_completo: 'Operador Centro TLD',
+        rol: 'OPERADOR_TLD',
+        planta_asignada: 'TLD',
+        activo: true
+    },
+    {
+        id: 6,
         username: 'auditor',
         password: 'auditor123',
         nombre_completo: 'Auditor de Calidad',
@@ -76,6 +94,12 @@ function initAuthSession() {
             systemUsers = JSON.parse(cachedUsers);
             if (!Array.isArray(systemUsers) || systemUsers.length === 0) {
                 systemUsers = [...DEFAULT_SEED_USERS];
+            } else {
+                DEFAULT_SEED_USERS.forEach(seed => {
+                    if (!systemUsers.some(u => u.username.toLowerCase() === seed.username.toLowerCase())) {
+                        systemUsers.push(seed);
+                    }
+                });
             }
         } catch(e) {
             systemUsers = [...DEFAULT_SEED_USERS];
@@ -144,7 +168,7 @@ function submitLogin() {
             nombre_completo: found.nombre_completo,
             role: found.rol,
             planta_asignada: found.planta_asignada,
-            allowedPlantas: found.rol === 'ADMIN' ? ['MANTA', 'BALZAR', 'TODAS'] : [found.planta_asignada]
+            allowedPlantas: found.rol === 'ADMIN' ? ['MANTA', 'BALZAR', 'ARROCESA', 'TLD', 'TODAS'] : [found.planta_asignada]
         };
 
         localStorage.setItem('balzar_user_session', JSON.stringify(currentUserSession));
@@ -233,7 +257,7 @@ function applyUserSessionPermissions() {
         document.getElementById('dashboard-planta-filter')
     ];
 
-    if (!isAdmin && (userPlant === 'MANTA' || userPlant === 'BALZAR')) {
+    if (!isAdmin && userPlant && userPlant !== 'TODAS') {
         // Bloquear permanentemente a la planta asignada
         currentPlanta = userPlant;
         localStorage.setItem('balzar_current_planta', currentPlanta);
@@ -369,12 +393,28 @@ function renderUsersTable(filterPlant = 'TODAS', searchTerm = '') {
 
     tbody.innerHTML = filtered.map(u => {
         const isActivo = (u.activo !== false);
-        const roleColor = u.rol === 'ADMIN' ? '#1E293B' : (u.rol === 'OPERADOR_MANTA' ? '#047857' : (u.rol === 'OPERADOR_BALZAR' ? '#1D4ED8' : '#D97706'));
-        const plantBadge = u.planta_asignada === 'MANTA' 
-            ? '<span style="background: #ECFDF5; color: #047857; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">📍 Manta</span>'
-            : (u.planta_asignada === 'BALZAR'
-                ? '<span style="background: #EFF6FF; color: #1D4ED8; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">📍 Balzar</span>'
-                : '<span style="background: #F1F5F9; color: #334155; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">🌐 Global (Todas)</span>');
+        const roleColor = u.rol === 'ADMIN' 
+            ? '#1E293B' 
+            : (u.rol === 'OPERADOR_MANTA' 
+                ? '#047857' 
+                : (u.rol === 'OPERADOR_BALZAR' 
+                    ? '#1D4ED8' 
+                    : (u.rol === 'OPERADOR_ARROCESA' 
+                        ? '#D97706' 
+                        : (u.rol === 'OPERADOR_TLD' 
+                            ? '#7C3AED' 
+                            : '#64748B'))));
+
+        let plantBadge = '<span style="background: #F1F5F9; color: #334155; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">🌐 Global (Todas)</span>';
+        if (u.planta_asignada === 'MANTA') {
+            plantBadge = '<span style="background: #ECFDF5; color: #047857; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">📍 Manta</span>';
+        } else if (u.planta_asignada === 'BALZAR') {
+            plantBadge = '<span style="background: #EFF6FF; color: #1D4ED8; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">📍 Balzar</span>';
+        } else if (u.planta_asignada === 'ARROCESA') {
+            plantBadge = '<span style="background: #FEF3C7; color: #D97706; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">📍 Arrocesa</span>';
+        } else if (u.planta_asignada === 'TLD') {
+            plantBadge = '<span style="background: #F3E8FF; color: #7C3AED; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">📍 TLD</span>';
+        }
 
         return `
             <tr style="border-bottom: 1px solid var(--border-color);">
@@ -477,6 +517,10 @@ function onUserModalRoleChange(role) {
         plantaSel.value = 'MANTA';
     } else if (role === 'OPERADOR_BALZAR') {
         plantaSel.value = 'BALZAR';
+    } else if (role === 'OPERADOR_ARROCESA') {
+        plantaSel.value = 'ARROCESA';
+    } else if (role === 'OPERADOR_TLD') {
+        plantaSel.value = 'TLD';
     }
 }
 
@@ -627,6 +671,16 @@ function isRecordInActivePlanta(record) {
 }
 
 /**
+ * Obtiene la planta asociada a un registro de forma estandarizada en mayúsculas
+ * @param {object} record
+ * @returns {string} 'MANTA' | 'BALZAR' | 'ARROCESA' | 'TLD'
+ */
+function getRecordPlanta(record) {
+    if (!record) return 'MANTA';
+    return String(record.planta || record.PLANTA || 'MANTA').toUpperCase();
+}
+
+/**
  * Sincroniza todos los selectores de planta de la interfaz gráfica
  */
 function syncPlantaSelectorUI() {
@@ -639,26 +693,40 @@ function syncPlantaSelectorUI() {
     const dashSel = document.getElementById('dashboard-planta-filter');
     if (dashSel) dashSel.value = currentPlanta;
 
+    const plantLabel = currentPlanta === 'TODAS' ? 'CONSOLIDADO' : currentPlanta;
+    const plantDisplayName = {
+        'MANTA': 'Manta',
+        'BALZAR': 'Balzar',
+        'ARROCESA': 'Arrocesa',
+        'TLD': 'TLD',
+        'TODAS': 'Consolidado General'
+    }[currentPlanta] || currentPlanta;
+
     const sidebarPlantLabel = document.getElementById('sidebar-plant-label');
     if (sidebarPlantLabel) {
-        sidebarPlantLabel.innerText = currentPlanta === 'TODAS' ? 'CONSOLIDADO' : currentPlanta;
+        sidebarPlantLabel.innerText = plantLabel;
     }
 
     const sidebarPlantSubtitle = document.getElementById('sidebar-plant-subtitle');
     if (sidebarPlantSubtitle) {
-        sidebarPlantSubtitle.innerText = currentPlanta === 'TODAS' ? 'Consolidado' : (currentPlanta === 'MANTA' ? 'Manta' : 'Balzar');
+        sidebarPlantSubtitle.innerText = plantDisplayName;
     }
 
     const crumbPlant = document.getElementById('dashboard-crumb-plant');
     if (crumbPlant) {
-        crumbPlant.innerText = currentPlanta === 'TODAS' ? 'Consolidado General' : `Centro ${currentPlanta === 'MANTA' ? 'Manta' : 'Balzar'}`;
+        crumbPlant.innerText = currentPlanta === 'TODAS' ? 'Consolidado General' : `Centro ${plantDisplayName}`;
     }
 
     const landingPlantLabel = document.getElementById('landing-plant-label');
     if (landingPlantLabel) {
         landingPlantLabel.innerText = currentPlanta === 'TODAS' 
             ? 'CONSOLIDADO GENERAL' 
-            : `PLANTA ${currentPlanta === 'MANTA' ? 'MANTA' : 'BALZAR'}`;
+            : `PLANTA ${plantLabel}`;
+    }
+
+    const histSub = document.getElementById('historial-planta-subtitle');
+    if (histSub) {
+        histSub.innerText = `Relación completa de todas las contramuestras registradas en el sistema Planta ${plantDisplayName}.`;
     }
 }
 
@@ -711,37 +779,30 @@ function onGlobalPlantaChange(newPlanta) {
 function setSyncPlanta(planta) {
     currentSyncPlanta = planta.toUpperCase();
     
-    const btnManta = document.getElementById('btn-sync-planta-manta');
-    const btnBalzar = document.getElementById('btn-sync-planta-balzar');
-    if (btnManta && btnBalzar) {
-        if (currentSyncPlanta === 'MANTA') {
-            btnManta.style.background = '#0f172a';
-            btnManta.style.color = '#ffffff';
-            btnBalzar.style.background = 'transparent';
-            btnBalzar.style.color = '#475569';
-        } else {
-            btnBalzar.style.background = '#0f172a';
-            btnBalzar.style.color = '#ffffff';
-            btnManta.style.background = 'transparent';
-            btnManta.style.color = '#475569';
+    const plants = ['manta', 'balzar', 'arrocesa', 'tld'];
+    plants.forEach(p => {
+        const btnModal = document.getElementById(`btn-sync-planta-${p}`);
+        if (btnModal) {
+            if (currentSyncPlanta === p.toUpperCase()) {
+                btnModal.style.background = '#0f172a';
+                btnModal.style.color = '#ffffff';
+            } else {
+                btnModal.style.background = 'transparent';
+                btnModal.style.color = '#475569';
+            }
         }
-    }
 
-    const tabBtnManta = document.getElementById('sync-tab-planta-manta');
-    const tabBtnBalzar = document.getElementById('sync-tab-planta-balzar');
-    if (tabBtnManta && tabBtnBalzar) {
-        if (currentSyncPlanta === 'MANTA') {
-            tabBtnManta.style.background = '#0f172a';
-            tabBtnManta.style.color = '#ffffff';
-            tabBtnBalzar.style.background = 'transparent';
-            tabBtnBalzar.style.color = '#475569';
-        } else {
-            tabBtnBalzar.style.background = '#0f172a';
-            tabBtnBalzar.style.color = '#ffffff';
-            tabBtnManta.style.background = 'transparent';
-            tabBtnManta.style.color = '#475569';
+        const tabBtn = document.getElementById(`sync-tab-planta-${p}`);
+        if (tabBtn) {
+            if (currentSyncPlanta === p.toUpperCase()) {
+                tabBtn.style.background = '#0f172a';
+                tabBtn.style.color = '#ffffff';
+            } else {
+                tabBtn.style.background = 'transparent';
+                tabBtn.style.color = '#475569';
+            }
         }
-    }
+    });
 
     if (lastLoadedSyncWorkbook) {
         processExcelSyncWorkbook(lastLoadedSyncWorkbook.workbook, lastLoadedSyncWorkbook.fileName);
@@ -1295,10 +1356,14 @@ function switchTab(tab) {
         const elCalid = document.getElementById('sync-stat-calidad');
         const rManta = (appData.aries || []).filter(r => (r.planta || 'MANTA').toUpperCase() === 'MANTA').length;
         const rBalzar = (appData.aries || []).filter(r => (r.planta || '').toUpperCase() === 'BALZAR').length;
+        const rArrocesa = (appData.aries || []).filter(r => (r.planta || '').toUpperCase() === 'ARROCESA').length;
+        const rTld = (appData.aries || []).filter(r => (r.planta || '').toUpperCase() === 'TLD').length;
         const cManta = (appData.calidad || []).filter(r => (r.planta || 'MANTA').toUpperCase() === 'MANTA').length;
         const cBalzar = (appData.calidad || []).filter(r => (r.planta || '').toUpperCase() === 'BALZAR').length;
-        if (elRecep) elRecep.innerText = `${(appData.aries || []).length} boletos (Manta: ${rManta} | Balzar: ${rBalzar})`;
-        if (elCalid) elCalid.innerText = `${(appData.calidad || []).length} análisis (Manta: ${cManta} | Balzar: ${cBalzar})`;
+        const cArrocesa = (appData.calidad || []).filter(r => (r.planta || '').toUpperCase() === 'ARROCESA').length;
+        const cTld = (appData.calidad || []).filter(r => (r.planta || '').toUpperCase() === 'TLD').length;
+        if (elRecep) elRecep.innerText = `${(appData.aries || []).length} boletos (Manta: ${rManta} | Balzar: ${rBalzar} | Arrocesa: ${rArrocesa} | TLD: ${rTld})`;
+        if (elCalid) elCalid.innerText = `${(appData.calidad || []).length} análisis (Manta: ${cManta} | Balzar: ${cBalzar} | Arrocesa: ${cArrocesa} | TLD: ${cTld})`;
     } else if (tab === 'usuarios') {
         if (!currentUserSession || currentUserSession.role !== 'ADMIN') {
             showToast('Acceso restringido: Solo el Administrador puede gestionar usuarios.', 'danger');
@@ -1309,14 +1374,40 @@ function switchTab(tab) {
     }
 }
 
+/**
+ * Obtiene la fecha de compra asociada a una contramuestra.
+ * Prioriza 'FECHA DE COMPRA', luego busca el ticket en Aries (FECHAENTRA), y por último usa la fecha de registro.
+ */
+function getContramuestraFechaCompra(row) {
+    if (!row) return '';
+    let f = row['FECHA DE COMPRA'] || row.fecha_compra;
+    if (f) {
+        const str = formatDateReadable(f);
+        if (str && str !== '-') return str;
+    }
+    const ticketNo = Number(row['TICKET No.'] || row.ticket_no);
+    if (ticketNo && appData.aries) {
+        const aRow = appData.aries.find(a => Number(a.TICKETPESO) === ticketNo);
+        if (aRow && aRow.FECHAENTRA) {
+            const str = formatDateReadable(aRow.FECHAENTRA);
+            if (str && str !== '-') return str;
+        }
+    }
+    return formatDateReadable(row['FECHA'] || row.fecha);
+}
+
 function initializeHistoryCalendarControls() {
     if (!appData.contramuestra || appData.contramuestra.length === 0) return;
     
     populateHistoryMonthFilter();
     
-    // Obtener fechas únicas que tienen contramuestras registradas
-    const uniqueRegDates = [...new Set(appData.contramuestra.filter(r => isRecordInActivePlanta(r)).map(row => formatDateReadable(row['FECHA'])))].filter(d => d && d !== '-');
-    uniqueRegDates.sort((a, b) => new Date(b) - new Date(a));
+    // Obtener fechas únicas de COMPRA que tienen contramuestras registradas en la planta activa
+    const uniqueCompraDates = [...new Set(
+        appData.contramuestra
+            .filter(r => isRecordInActivePlanta(r))
+            .map(row => getContramuestraFechaCompra(row))
+    )].filter(d => d && d !== '-');
+    uniqueCompraDates.sort((a, b) => new Date(b) - new Date(a));
     
     if (window.flatpickrHistoryInstance) {
         window.flatpickrHistoryInstance.destroy();
@@ -1327,7 +1418,7 @@ function initializeHistoryCalendarControls() {
     
     if (!filterInput) return;
     
-    if (uniqueRegDates.length === 0) {
+    if (uniqueCompraDates.length === 0) {
         filterInput.placeholder = 'Sin registros';
         filterInput.disabled = true;
         return;
@@ -1337,7 +1428,7 @@ function initializeHistoryCalendarControls() {
     filterInput.value = ''; // Vacío por defecto para mostrar las últimas 10
     
     window.flatpickrHistoryInstance = flatpickr("#history-date-filter", {
-        enable: uniqueRegDates.map(d => new Date(d + 'T12:00:00')),
+        enable: uniqueCompraDates.map(d => new Date(d + 'T12:00:00')),
         dateFormat: "Y-m-d",
         locale: {
             firstDayOfWeek: 1,
@@ -1354,9 +1445,9 @@ function initializeHistoryCalendarControls() {
             renderHistoryTable(dateStr, null);
         },
         onOpen: function(selectedDates, dateStr, instance) {
-            if (uniqueRegDates.length > 0 && selectedDates.length === 0) {
-                // Forzar que el calendario se abra mostrando el mes del registro más reciente
-                instance.jumpToDate(new Date(uniqueRegDates[0] + 'T12:00:00'));
+            if (uniqueCompraDates.length > 0 && selectedDates.length === 0) {
+                // Forzar que el calendario se abra mostrando el mes de la compra más reciente
+                instance.jumpToDate(new Date(uniqueCompraDates[0] + 'T12:00:00'));
             }
         }
     });
@@ -1386,7 +1477,7 @@ function populateHistoryMonthFilter() {
     
     appData.contramuestra.forEach(row => {
         if (!isRecordInActivePlanta(row)) return;
-        const dateStr = formatDateReadable(row['FECHA']);
+        const dateStr = getContramuestraFechaCompra(row);
         if (dateStr && dateStr !== '-') {
             const parts = dateStr.split('-');
             if (parts.length >= 2) {
@@ -1485,17 +1576,17 @@ function renderHistoryTable(dateFilter = null, monthFilter = null) {
         return;
     }
     
-    // Ordenar de más reciente a más antiguo por fecha de registro
+    // Ordenar de más reciente a más antiguo por fecha de COMPRA
     const sorted = [...validContramuestras].sort((a, b) => {
-        const dateA = new Date(a['FECHA'] || 0);
-        const dateB = new Date(b['FECHA'] || 0);
+        const dateA = new Date(getContramuestraFechaCompra(a) || 0);
+        const dateB = new Date(getContramuestraFechaCompra(b) || 0);
         return dateB - dateA;
     });
     
-    // Filtrar por fecha o mes
+    // Filtrar por fecha de compra o mes de compra
     let displayed = [];
     if (dateFilter) {
-        displayed = sorted.filter(row => formatDateReadable(row['FECHA']) === dateFilter);
+        displayed = sorted.filter(row => getContramuestraFechaCompra(row) === dateFilter);
     } else {
         const currentMonthFilter = monthFilter || (document.getElementById('history-month-filter') ? document.getElementById('history-month-filter').value : 'recent');
         if (currentMonthFilter === 'recent') {
@@ -1504,7 +1595,7 @@ function renderHistoryTable(dateFilter = null, monthFilter = null) {
             displayed = sorted;
         } else {
             displayed = sorted.filter(row => {
-                const dateStr = formatDateReadable(row['FECHA']);
+                const dateStr = getContramuestraFechaCompra(row);
                 return dateStr && dateStr.startsWith(currentMonthFilter);
             });
         }
@@ -1514,7 +1605,7 @@ function renderHistoryTable(dateFilter = null, monthFilter = null) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">
-                    No se encontraron registros para la fecha seleccionada.
+                    No se encontraron registros para la fecha de compra seleccionada.
                 </td>
             </tr>
         `;
@@ -1525,7 +1616,7 @@ function renderHistoryTable(dateFilter = null, monthFilter = null) {
         const tr = document.createElement('tr');
         
         const fechaReg = formatDateReadable(row['FECHA'] || '');
-        const fechaCompra = formatDateReadable(row['FECHA DE COMPRA'] || '');
+        const fechaCompra = getContramuestraFechaCompra(row);
         const ticket = row['TICKET No.'] || '';
         
         // Formato para mostrar Aries / Calidad (Asistente de Procesos)
@@ -1759,7 +1850,7 @@ function renderDashboardStats(selectedMonth) {
     if (appData.contramuestra) {
         appData.contramuestra.forEach(row => {
             if (!isRecordInActivePlanta(row)) return;
-            const dateStr = formatDateReadable(row.FECHA);
+            const dateStr = getContramuestraFechaCompra(row);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
                 contramuestraCount++;
@@ -1782,8 +1873,8 @@ function renderDashboardStats(selectedMonth) {
                 const consReal = parseFloat(row.CONS_REAL || row.cons_real || 0);
                 
                 const rowPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
-                if (rowPlanta === 'BALZAR' && consTeo === 0) {
-                    consTeo = getAntimicoticoTheoretical(rDateStr, 'BALZAR').consTeo;
+                if (rowPlanta !== 'MANTA' && consTeo === 0) {
+                    consTeo = getAntimicoticoTheoretical(rDateStr, rowPlanta).consTeo;
                 }
                 
                 const diff = consReal - consTeo;
@@ -2006,8 +2097,8 @@ function renderVolumeChart(selectedMonth) {
         const consReal = parseFloat(row.CONS_REAL || row.cons_real || 0);
         
         const rowPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
-        if (rowPlanta === 'BALZAR' && consTeo === 0) {
-            consTeo = getAntimicoticoTheoretical(d, 'BALZAR').consTeo;
+        if (rowPlanta !== 'MANTA' && consTeo === 0) {
+            consTeo = getAntimicoticoTheoretical(d, rowPlanta).consTeo;
         }
 
         let adh = null;
@@ -3550,18 +3641,40 @@ function findPreviousAntimicoticoRecord(dateStr) {
 
 /**
  * Calcula el consumo teórico y parámetros de antimicótico según la planta:
- * - Balzar: 1 kg de antimicótico por cada 1 Tn de maíz comprado (no rechazado)
+ * - Balzar, Arrocesa y TLD: 1 kg de antimicótico por cada 1 Tn de maíz comprado (no rechazado)
  * - Manta: 40 kg de antimicótico por camión recibido
  */
 function getAntimicoticoTheoretical(dateStr, planta) {
     const targetPlanta = String(planta || currentPlanta || '').toUpperCase();
+    
+    if (targetPlanta === 'TODAS') {
+        let totalTeo = 0;
+        let totalTrucks = 0;
+        let totalTm = 0;
+        
+        ['MANTA', 'BALZAR', 'ARROCESA', 'TLD'].forEach(p => {
+            const res = getAntimicoticoTheoretical(dateStr, p);
+            totalTeo += res.consTeo;
+            totalTrucks += res.numTrucks;
+            totalTm += res.totalTm;
+        });
+        
+        return {
+            consTeo: totalTeo,
+            numTrucks: totalTrucks,
+            totalTm: totalTm,
+            isBalzar: false,
+            ruleText: 'Consolidado Multicentro'
+        };
+    }
+
     let totalKilosDay = 0;
     let numTrucks = 0;
     
     if (appData.aries) {
         appData.aries.forEach(row => {
             const rowPlant = getRecordPlanta(row);
-            if (targetPlanta !== 'TODAS' && rowPlant !== targetPlanta) return;
+            if (rowPlant !== targetPlanta) return;
             if (formatDateReadable(row.FECHAENTRA) === dateStr) {
                 const isPurchase = Number(row.PESOARTIC) === 1;
                 const isRejected = row.RECHAZA_PS && String(row.RECHAZA_PS).trim().toUpperCase() === 'S';
@@ -3574,10 +3687,11 @@ function getAntimicoticoTheoretical(dateStr, planta) {
     }
     
     const totalTm = totalKilosDay / 1000;
+    const isCornTnRule = (targetPlanta !== 'MANTA');
     
-    if (targetPlanta === 'BALZAR') {
+    if (isCornTnRule) {
         return {
-            consTeo: totalTm * 1.0, // 1 kg de antimicótico por cada 1 Tn de maíz comprado
+            consTeo: totalTm * 1.0, // 1 kg de antimicótico por cada 1 Tn de maíz comprado (Balzar, Arrocesa, TLD)
             numTrucks: numTrucks,
             totalTm: totalTm,
             isBalzar: true,
@@ -3585,7 +3699,7 @@ function getAntimicoticoTheoretical(dateStr, planta) {
         };
     } else {
         return {
-            consTeo: numTrucks * 40.0, // 40 kg de antimicótico por camión recibido
+            consTeo: numTrucks * 40.0, // 40 kg de antimicótico por camión recibido (Manta)
             numTrucks: numTrucks,
             totalTm: totalTm,
             isBalzar: false,
@@ -3989,8 +4103,8 @@ function renderAntimicoticoHistoryTable() {
             const trucks = Number(row.TRUCKS_RCVD || 0);
             let consTeo = Number(row.CONS_TEO || 0);
             const rPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
-            if (rPlanta === 'BALZAR' && consTeo === 0) {
-                consTeo = getAntimicoticoTheoretical(dateStr, 'BALZAR').consTeo;
+            if (rPlanta !== 'MANTA' && consTeo === 0) {
+                consTeo = getAntimicoticoTheoretical(dateStr, rPlanta).consTeo;
             }
             const consReal = Number(row.CONS_REAL || 0);
             const diff = consReal - consTeo;
@@ -4080,8 +4194,8 @@ function updateMonthlyAdherenceKPI(selectedDateStr) {
             
             let consTeo = parseFloat(row.CONS_TEO || 0);
             const rowPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
-            if (rowPlanta === 'BALZAR' && consTeo === 0) {
-                consTeo = getAntimicoticoTheoretical(rDateStr, 'BALZAR').consTeo;
+            if (rowPlanta !== 'MANTA' && consTeo === 0) {
+                consTeo = getAntimicoticoTheoretical(rDateStr, rowPlanta).consTeo;
             }
             const consReal = parseFloat(row.CONS_REAL || 0);
             const diff = consReal - consTeo;
@@ -4135,9 +4249,29 @@ function exportHistoryReport() {
     const tbody = document.getElementById('history-table-body');
     if (!tbody) return;
     
-    const sorted = [...appData.contramuestra].sort((a, b) => {
-        const dateA = new Date(a['FECHA'] || 0);
-        const dateB = new Date(b['FECHA'] || 0);
+    const activePlantaName = currentPlanta === 'TODAS' ? 'CONSOLIDADO GENERAL' : currentPlanta;
+    
+    // Filtrar para que solo se incluyan contramuestras válidas de la planta activa
+    const validContramuestras = (appData.contramuestra || []).filter(row => {
+        if (!isRecordInActivePlanta(row)) return false;
+        const ticketNo = Number(row['TICKET No.']);
+        if (!ticketNo) return true;
+        const ariesRow = (appData.aries || []).find(a => Number(a.TICKETPESO) === ticketNo);
+        if (ariesRow) {
+            const isPurchase = Number(ariesRow.PESOARTIC) === 1;
+            const isRejAries = ariesRow.RECHAZA_PS && String(ariesRow.RECHAZA_PS).trim().toUpperCase() === 'S';
+            if (!isPurchase || isRejAries) return false;
+        }
+        const calRecord = (appData.calidad || []).find(c => Number(c.TICKETPESO) === ticketNo);
+        if (calRecord && String(calRecord.CONFIRMA || calRecord.confirma || '').toUpperCase().startsWith('RECHAZA')) {
+            return false;
+        }
+        return true;
+    });
+
+    const sorted = [...validContramuestras].sort((a, b) => {
+        const dateA = new Date(getContramuestraFechaCompra(a) || 0);
+        const dateB = new Date(getContramuestraFechaCompra(b) || 0);
         return dateB - dateA;
     });
     
@@ -4149,25 +4283,30 @@ function exportHistoryReport() {
     
     let displayed = [];
     let reportTitleDate = '';
+    let reportTitleLabel = 'FECHA DE COMPRA';
     
     if (dateFilter) {
-        displayed = sorted.filter(row => formatDateReadable(row['FECHA']) === dateFilter);
+        displayed = sorted.filter(row => getContramuestraFechaCompra(row) === dateFilter);
         reportTitleDate = dateFilter;
+        reportTitleLabel = 'FECHA DE COMPRA';
     } else {
         if (currentMonthFilter === 'recent') {
             displayed = sorted.slice(0, 10);
             reportTitleDate = 'Últimos 10 registros';
+            reportTitleLabel = 'PERÍODO';
         } else if (currentMonthFilter === 'all') {
             displayed = sorted;
             reportTitleDate = 'Todos los registros';
+            reportTitleLabel = 'PERÍODO';
         } else {
             displayed = sorted.filter(row => {
-                const dateStr = formatDateReadable(row['FECHA']);
+                const dateStr = getContramuestraFechaCompra(row);
                 return dateStr && dateStr.startsWith(currentMonthFilter);
             });
             const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
             const parts = currentMonthFilter.split('-');
             reportTitleDate = `${monthNames[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+            reportTitleLabel = 'MES DE COMPRA';
         }
     }
     
@@ -4176,36 +4315,54 @@ function exportHistoryReport() {
         return;
     }
     
-    // Clonar y ordenar ascendentemente por fecha para reporte ordenado
+    // Clonar y ordenar ascendentemente por fecha de compra para reporte ordenado
     const reportDataList = [...displayed].reverse();
     
-    // Calcular boletos totales de compra recibidos en Aries para esa fecha
+    // Calcular boletos totales de compra recibidos en Aries para esa fecha de compra en la planta activa
     let totalAriesCount = 0;
     if (dateFilter) {
-        totalAriesCount = appData.aries.filter(r => formatDateReadable(r.FECHAENTRA) === dateFilter && Number(r.PESOARTIC) === 1 && (!r.RECHAZA_PS || String(r.RECHAZA_PS).trim().toUpperCase() !== 'S')).length;
+        totalAriesCount = (appData.aries || []).filter(r => {
+            if (!isRecordInActivePlanta(r)) return false;
+            const isPurchase = Number(r.PESOARTIC) === 1;
+            const isRej = r.RECHAZA_PS && String(r.RECHAZA_PS).trim().toUpperCase() === 'S';
+            return isPurchase && !isRej && formatDateReadable(r.FECHAENTRA) === dateFilter;
+        }).length;
     } else {
         if (currentMonthFilter === 'recent') {
-            const dispDates = [...new Set(reportDataList.map(r => formatDateReadable(r['FECHA DE COMPRA'] || r['FECHA'])))];
-            totalAriesCount = appData.aries.filter(r => dispDates.includes(formatDateReadable(r.FECHAENTRA)) && Number(r.PESOARTIC) === 1 && (!r.RECHAZA_PS || String(r.RECHAZA_PS).trim().toUpperCase() !== 'S')).length;
+            const dispDates = [...new Set(reportDataList.map(r => getContramuestraFechaCompra(r)))];
+            totalAriesCount = (appData.aries || []).filter(r => {
+                if (!isRecordInActivePlanta(r)) return false;
+                const isPurchase = Number(r.PESOARTIC) === 1;
+                const isRej = r.RECHAZA_PS && String(r.RECHAZA_PS).trim().toUpperCase() === 'S';
+                return isPurchase && !isRej && dispDates.includes(formatDateReadable(r.FECHAENTRA));
+            }).length;
         } else if (currentMonthFilter === 'all') {
-            totalAriesCount = appData.aries.filter(r => Number(r.PESOARTIC) === 1 && (!r.RECHAZA_PS || String(r.RECHAZA_PS).trim().toUpperCase() !== 'S')).length;
+            totalAriesCount = (appData.aries || []).filter(r => {
+                if (!isRecordInActivePlanta(r)) return false;
+                const isPurchase = Number(r.PESOARTIC) === 1;
+                const isRej = r.RECHAZA_PS && String(r.RECHAZA_PS).trim().toUpperCase() === 'S';
+                return isPurchase && !isRej;
+            }).length;
         } else {
-            totalAriesCount = appData.aries.filter(r => {
+            totalAriesCount = (appData.aries || []).filter(r => {
+                if (!isRecordInActivePlanta(r)) return false;
+                const isPurchase = Number(r.PESOARTIC) === 1;
+                const isRej = r.RECHAZA_PS && String(r.RECHAZA_PS).trim().toUpperCase() === 'S';
                 const dateStr = formatDateReadable(r.FECHAENTRA);
-                return dateStr && dateStr.startsWith(currentMonthFilter) && Number(r.PESOARTIC) === 1 && (!r.RECHAZA_PS || String(r.RECHAZA_PS).trim().toUpperCase() !== 'S');
+                return isPurchase && !isRej && dateStr && dateStr.startsWith(currentMonthFilter);
             }).length;
         }
     }
     
     const controlFisicoCount = reportDataList.length;
-    const diffCount = totalAriesCount - controlFisicoCount;
+    const diffCount = Math.max(0, totalAriesCount - controlFisicoCount);
     
     let t1RowsHtml = '';
     let t2RowsHtml = '';
     
     reportDataList.forEach((row, idx) => {
         const rowNum = idx + 1;
-        const cmDate = formatDateReadable(row['FECHA DE COMPRA'] || row['FECHA']);
+        const cmDate = getContramuestraFechaCompra(row);
         
         // Parámetros Aries
         const ah1 = parseFloat(row['ARIES_% HUM 1'] || 0);
@@ -4302,7 +4459,7 @@ function exportHistoryReport() {
                         <img src="data:image/png;base64,${LOGO_BASE64}" style="width: 125px; height: 47px; display: block; border: none; margin: 0;" />
                     </td>
                     <td style="text-align: center; vertical-align: middle; height: 65px; padding: 0;">
-                        <div style="font-size: 13pt; font-weight: bold; color: #111; text-transform: uppercase; font-family: Arial, sans-serif; line-height: 1.2;">CENTRO DE OPERACIONES MANTA</div>
+                        <div style="font-size: 13pt; font-weight: bold; color: #111; text-transform: uppercase; font-family: Arial, sans-serif; line-height: 1.2;">CENTRO DE OPERACIONES ${activePlantaName}</div>
                         <div style="font-size: 9pt; font-weight: bold; color: #333; margin-top: 4px; text-transform: uppercase; font-family: Arial, sans-serif;">
                             REGISTRO DE VALIDACIÓN POR MUESTREO DE ANÁLISIS DE HUMEDAD Y VARIACIÓN DE LECTURA
                         </div>
@@ -4313,7 +4470,7 @@ function exportHistoryReport() {
 
             <!-- Date Block -->
             <div style="font-weight: bold; margin-bottom: 10px; font-size: 9pt;">
-                FECHA DE REVISIÓN: <span style="background-color: #FFF2CC; padding: 3px 10px; border: 1px solid #A0A0A0; border-radius: 2px; font-weight: bold; color: #111;">${reportTitleDate}</span>
+                ${reportTitleLabel}: <span style="background-color: #FFF2CC; padding: 3px 10px; border: 1px solid #A0A0A0; border-radius: 2px; font-weight: bold; color: #111;">${reportTitleDate}</span>
             </div>
 
             <!-- Table 1: Detalle de Muestreo (Aries vs Calidad) -->
@@ -4389,7 +4546,7 @@ function exportHistoryReport() {
 
             <!-- Summary Text Block -->
             <div style="font-size: 9pt; margin-bottom: 20px; line-height: 1.4; background-color: #F2F2F2; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
-                Se registraron un total de <strong>${totalAriesCount}</strong> boletos de ingreso en el sistema Aries para el período seleccionado. 
+                Se registraron un total de <strong>${totalAriesCount}</strong> boletos de ingreso en el sistema Aries para el período seleccionado (${activePlantaName === 'CONSOLIDADO GENERAL' ? 'Consolidado General' : 'Centro ' + activePlantaName}). 
                 De estos, se realizaron <strong>${controlFisicoCount}</strong> análisis físicos en contramuestras, resultando en una diferencia de <strong>${diffCount}</strong> boletos sin control físico.
             </div>
 
@@ -4420,7 +4577,7 @@ function exportHistoryReport() {
 
     const opt = {
         margin:       [0.4, 0.4, 0.4, 0.4],
-        filename:     `Reporte_Calidad_${reportTitleDate}.pdf`,
+        filename:     `Reporte_Calidad_${(activePlantaName === 'CONSOLIDADO GENERAL' ? 'Consolidado' : activePlantaName)}_${reportTitleDate.replace(/\s+/g, '_')}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2.5, useCORS: true, logging: false },
         jsPDF:        { unit: 'in', format: 'legal', orientation: 'landscape' }
@@ -4618,8 +4775,8 @@ function exportAntimicoticoReport() {
             const consReal = parseFloat(row.CONS_REAL || row.cons_real || 0);
             let consTeo = parseFloat(row.CONS_TEO || row.cons_teo || 0);
             const rPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
-            if (rPlanta === 'BALZAR' && consTeo === 0) {
-                consTeo = getAntimicoticoTheoretical(dateStr, 'BALZAR').consTeo;
+            if (rPlanta !== 'MANTA' && consTeo === 0) {
+                consTeo = getAntimicoticoTheoretical(dateStr, rPlanta).consTeo;
             }
             const trucks = parseInt(row.TRUCKS_RCVD || row.trucks_rcvd || 0, 10);
             const diff = consReal - consTeo;
@@ -4828,7 +4985,7 @@ function updateControlsMatrixTable(selectedMonth) {
     if (appData.contramuestra) {
         appData.contramuestra.forEach(row => {
             if (!isRecordInActivePlanta(row)) return;
-            const dateStr = formatDateReadable(row.FECHA);
+            const dateStr = getContramuestraFechaCompra(row);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
                 contramuestraCount++;
@@ -4846,8 +5003,8 @@ function updateControlsMatrixTable(selectedMonth) {
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
                 let rTeo = parseFloat(row.CONS_TEO || 0);
                 const rPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
-                if (rPlanta === 'BALZAR' && rTeo === 0) {
-                    rTeo = getAntimicoticoTheoretical(dateStr, 'BALZAR').consTeo;
+                if (rPlanta !== 'MANTA' && rTeo === 0) {
+                    rTeo = getAntimicoticoTheoretical(dateStr, rPlanta).consTeo;
                 }
                 antiTeoSum += rTeo;
                 antiRealSum += parseFloat(row.CONS_REAL || 0);
@@ -5015,7 +5172,7 @@ function exportDashboardControlsReport() {
     if (appData.contramuestra) {
         appData.contramuestra.forEach(row => {
             if (!isRecordInActivePlanta(row)) return;
-            const dateStr = formatDateReadable(row.FECHA);
+            const dateStr = getContramuestraFechaCompra(row);
             if (dateStr === '-') return;
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
                 contramuestraCount++;
@@ -5033,8 +5190,8 @@ function exportDashboardControlsReport() {
             if (selectedMonth === 'all' || dateStr.startsWith(selectedMonth)) {
                 let rTeo = parseFloat(row.CONS_TEO || 0);
                 const rPlanta = String(row.PLANTA || row.planta || currentPlanta || '').toUpperCase();
-                if (rPlanta === 'BALZAR' && rTeo === 0) {
-                    rTeo = getAntimicoticoTheoretical(dateStr, 'BALZAR').consTeo;
+                if (rPlanta !== 'MANTA' && rTeo === 0) {
+                    rTeo = getAntimicoticoTheoretical(dateStr, rPlanta).consTeo;
                 }
                 antiTeoSum += rTeo;
                 antiRealSum += parseFloat(row.CONS_REAL || 0);
@@ -5978,7 +6135,13 @@ function handleSyncFileSelect(event) {
             const sheetNames = workbook.SheetNames || [];
             const sheetLower = sheetNames.map(s => s.toLowerCase());
             const fnLower = (file.name || '').toLowerCase();
-            if (sheetLower.some(s => s.includes('balzar')) || fnLower.includes('balzar')) {
+            if (sheetLower.some(s => s.includes('arrocesa')) || fnLower.includes('arrocesa')) {
+                setSyncPlanta('ARROCESA');
+                showToast('Detectada hoja/archivo de Planta Arrocesa. Planta destino: ARROCESA', 'info');
+            } else if (sheetLower.some(s => s.includes('tld')) || fnLower.includes('tld')) {
+                setSyncPlanta('TLD');
+                showToast('Detectada hoja/archivo de Planta TLD. Planta destino: TLD', 'info');
+            } else if (sheetLower.some(s => s.includes('balzar')) || fnLower.includes('balzar')) {
                 setSyncPlanta('BALZAR');
                 showToast('Detectada hoja/archivo de Planta Balzar. Planta destino: BALZAR', 'info');
             } else if (sheetLower.some(s => s.includes('manta')) || fnLower.includes('manta')) {
@@ -6004,6 +6167,10 @@ function processExcelSyncWorkbook(workbook, fileName) {
         let ariesSheet = null;
         if (currentSyncPlanta === 'BALZAR') {
             ariesSheet = workbook.Sheets['Ingreso Balzar'] || workbook.Sheets['Balzar'] || workbook.Sheets['Aries'] || workbook.Sheets['Ingreso Manta'];
+        } else if (currentSyncPlanta === 'ARROCESA') {
+            ariesSheet = workbook.Sheets['Ingreso Arrocesa'] || workbook.Sheets['Arrocesa'] || workbook.Sheets['Aries'] || workbook.Sheets['Ingreso Balzar'] || workbook.Sheets['Ingreso Manta'];
+        } else if (currentSyncPlanta === 'TLD') {
+            ariesSheet = workbook.Sheets['Ingreso TLD'] || workbook.Sheets['TLD'] || workbook.Sheets['Aries'] || workbook.Sheets['Ingreso Balzar'] || workbook.Sheets['Ingreso Manta'];
         } else {
             ariesSheet = workbook.Sheets['Ingreso Manta'] || workbook.Sheets['Manta'] || workbook.Sheets['Aries'] || workbook.Sheets['Ingreso Balzar'];
         }

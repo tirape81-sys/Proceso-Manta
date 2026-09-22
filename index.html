@@ -6,7 +6,7 @@
     <title>Planta Manta - Control de Calidad</title>
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="app.css?v=5.11">
+    <link rel="stylesheet" href="app.css?v=5.13">
     
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -131,6 +131,8 @@
                         <select id="landing-planta-select" onchange="onGlobalPlantaChange(this.value)">
                             <option value="BALZAR">Planta Balzar</option>
                             <option value="MANTA">Planta Manta</option>
+                            <option value="ARROCESA">Planta Arrocesa</option>
+                            <option value="TLD">Planta TLD</option>
                             <option value="TODAS">Consolidado</option>
                         </select>
                     </div>
@@ -304,7 +306,9 @@
                 <select id="global-planta-select" onchange="onGlobalPlantaChange(this.value)">
                     <option value="BALZAR">📍 Planta Balzar</option>
                     <option value="MANTA">📍 Planta Manta</option>
-                    <option value="TODAS">🌐 Consolidado (Ambas)</option>
+                    <option value="ARROCESA">📍 Planta Arrocesa</option>
+                    <option value="TLD">📍 Planta TLD</option>
+                    <option value="TODAS">🌐 Consolidado General</option>
                 </select>
             </div>
             
@@ -380,6 +384,8 @@
                             <select id="dashboard-planta-filter" onchange="onGlobalPlantaChange(this.value)">
                                 <option value="BALZAR">Planta Balzar</option>
                                 <option value="MANTA">Planta Manta</option>
+                                <option value="ARROCESA">Planta Arrocesa</option>
+                                <option value="TLD">Planta TLD</option>
                                 <option value="TODAS">Consolidado</option>
                             </select>
                         </div>
@@ -676,7 +682,7 @@
             <section id="historial-view" class="view-section">
                 <div class="section-header">
                     <h1>Historial de Contramuestras</h1>
-                    <p>Relación completa de todas las contramuestras registradas en el sistema Planta Manta.</p>
+                    <p id="historial-planta-subtitle">Relación completa de todas las contramuestras registradas en el sistema Planta Manta.</p>
                 </div>
 
                 <div class="table-card">
@@ -696,9 +702,9 @@
                                 </div>
                                 <div style="border-left: 1px solid var(--border-color); height: 20px; margin: 0 4px; display: inline-block;"></div>
                                 <div style="display: flex; align-items: center; gap: 6px;">
-                                    <label for="history-date-filter" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-calendar-days"></i> O Filtrar Día:</label>
-                                    <input type="text" id="history-date-filter" placeholder="Seleccione día..." readonly style="width: 110px; border: none; background: transparent; font-size: 0.88rem; outline: none; cursor: pointer;">
-                                    <button id="btn-clear-history-filter" class="btn-clear" title="Limpiar Filtro Día"><i class="fa-solid fa-filter-circle-xmark"></i> Limpiar</button>
+                                    <label for="history-date-filter" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-calendar-days"></i> O Filtrar Fecha Compra:</label>
+                                    <input type="text" id="history-date-filter" placeholder="Fecha compra..." readonly style="width: 115px; border: none; background: transparent; font-size: 0.88rem; outline: none; cursor: pointer;">
+                                    <button id="btn-clear-history-filter" class="btn-clear" title="Limpiar Filtro"><i class="fa-solid fa-filter-circle-xmark"></i> Limpiar</button>
                                 </div>
                             </div>
                             <div class="table-search" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -1192,12 +1198,18 @@
                         <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
                             <i class="fa-solid fa-building-circle-check" style="color: #E2001A;"></i> Planta Destino de la Carga:
                         </span>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #F1F5F9; padding: 4px; border-radius: 8px; min-width: 320px;">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #F1F5F9; padding: 4px; border-radius: 8px; min-width: 320px;">
                             <button id="sync-tab-planta-manta" type="button" onclick="setSyncPlanta('MANTA')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; background: #0F172A; color: white; transition: var(--transition);">
                                 <i class="fa-solid fa-location-dot" style="color: #38BDF8;"></i> Planta Manta
                             </button>
                             <button id="sync-tab-planta-balzar" type="button" onclick="setSyncPlanta('BALZAR')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: #64748B; transition: var(--transition);">
                                 <i class="fa-solid fa-location-dot" style="color: #F59E0B;"></i> Planta Balzar
+                            </button>
+                            <button id="sync-tab-planta-arrocesa" type="button" onclick="setSyncPlanta('ARROCESA')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: #64748B; transition: var(--transition);">
+                                <i class="fa-solid fa-location-dot" style="color: #10B981;"></i> Planta Arrocesa
+                            </button>
+                            <button id="sync-tab-planta-tld" type="button" onclick="setSyncPlanta('TLD')" style="height: 38px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: #64748B; transition: var(--transition);">
+                                <i class="fa-solid fa-location-dot" style="color: #8B5CF6;"></i> Planta TLD
                             </button>
                         </div>
                     </div>
@@ -1342,6 +1354,8 @@
                                 <option value="TODAS">Todos los Centros</option>
                                 <option value="MANTA">📍 Manta</option>
                                 <option value="BALZAR">📍 Balzar</option>
+                                <option value="ARROCESA">📍 Arrocesa</option>
+                                <option value="TLD">📍 TLD</option>
                             </select>
                         </div>
                     </div>
@@ -1416,6 +1430,8 @@
                         <select id="user-modal-rol" onchange="onUserModalRoleChange(this.value)" style="width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 10px; font-family: inherit; font-size: 0.85rem; font-weight: 600; box-sizing: border-box; outline: none; background: white;">
                             <option value="OPERADOR_MANTA">Operador Planta Manta</option>
                             <option value="OPERADOR_BALZAR">Operador Planta Balzar</option>
+                            <option value="OPERADOR_ARROCESA">Operador Planta Arrocesa</option>
+                            <option value="OPERADOR_TLD">Operador Planta TLD</option>
                             <option value="ADMIN">Administrador General</option>
                             <option value="AUDITOR">Auditor de Calidad</option>
                         </select>
@@ -1427,6 +1443,8 @@
                         <select id="user-modal-planta" style="width: 100%; height: 40px; border-radius: 6px; border: 1px solid var(--border-color); padding: 0 10px; font-family: inherit; font-size: 0.85rem; font-weight: 600; box-sizing: border-box; outline: none; background: white;">
                             <option value="MANTA">📍 Solo Manta</option>
                             <option value="BALZAR">📍 Solo Balzar</option>
+                            <option value="ARROCESA">📍 Solo Arrocesa</option>
+                            <option value="TLD">📍 Solo TLD</option>
                             <option value="TODAS">🌐 Global (Todas las Plantas)</option>
                         </select>
                     </div>
@@ -1554,12 +1572,18 @@
                     <label style="font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.04em;">
                         <i class="fa-solid fa-building-circle-check"></i> Centro / Planta de Destino:
                     </label>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #e2e8f0; padding: 4px; border-radius: 8px;">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #e2e8f0; padding: 4px; border-radius: 8px;">
                         <button id="btn-sync-planta-manta" type="button" onclick="setSyncPlanta('MANTA')" style="height: 36px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: #0f172a; color: white; transition: var(--transition);">
-                            <i class="fa-solid fa-location-dot" style="color: #38bdf8;"></i> Planta Manta
+                            <i class="fa-solid fa-location-dot" style="color: #38bdf8;"></i> Manta
                         </button>
                         <button id="btn-sync-planta-balzar" type="button" onclick="setSyncPlanta('BALZAR')" style="height: 36px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: transparent; color: #475569; transition: var(--transition);">
-                            <i class="fa-solid fa-location-dot" style="color: #f59e0b;"></i> Planta Balzar
+                            <i class="fa-solid fa-location-dot" style="color: #f59e0b;"></i> Balzar
+                        </button>
+                        <button id="btn-sync-planta-arrocesa" type="button" onclick="setSyncPlanta('ARROCESA')" style="height: 36px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: transparent; color: #475569; transition: var(--transition);">
+                            <i class="fa-solid fa-location-dot" style="color: #10b981;"></i> Arrocesa
+                        </button>
+                        <button id="btn-sync-planta-tld" type="button" onclick="setSyncPlanta('TLD')" style="height: 36px; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; background: transparent; color: #475569; transition: var(--transition);">
+                            <i class="fa-solid fa-location-dot" style="color: #8b5cf6;"></i> TLD
                         </button>
                     </div>
                 </div>
@@ -1629,6 +1653,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js?v=5.11"></script>
+    <script src="app.js?v=5.13"></script>
 </body>
 </html>
